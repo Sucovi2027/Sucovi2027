@@ -210,9 +210,9 @@ export function renderAdmin(app) {
     try{
       const codigo=genCodigo(invitados.length+1),token=genToken()
       const ref=await crearInvitado({nombre:n,apellido:a,tel:t,
-        email:document.getElementById('re').value.trim()||undefined,
-        familia:document.getElementById('rf').value.trim()||undefined,
-        comentarios:document.getElementById('rc').value.trim()||undefined,
+        ...(document.getElementById('re').value.trim() && { email: document.getElementById('re').value.trim() }),
+        ...(document.getElementById('rf').value.trim() && { familia: document.getElementById('rf').value.trim() }),
+        ...(document.getElementById('rc').value.trim() && { comentarios: document.getElementById('rc').value.trim() }),
         estado:p,codigo,token})
       m.innerHTML=`<span style="color:#3B6D11">✓ ${n} ${a} (${codigo})</span>`
       ;['rn','ra','rt','re','rf','rc'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''})
@@ -259,9 +259,9 @@ export function renderAdmin(app) {
         nombre:      String(r[0]||'').trim(),
         apellido:    String(r[1]||'').trim(),
         tel:         String(r[2]||'').trim(),
-        email:       r[3] ? String(r[3]).trim() : undefined,
-        familia:     r[4] ? String(r[4]).trim() : undefined,
-        comentarios: r[5] ? String(r[5]).trim() : undefined,
+        ...(r[3] ? { email: String(r[3]).trim() } : {}),
+        ...(r[4] ? { familia: String(r[4]).trim() } : {}),
+        ...(r[5] ? { comentarios: String(r[5]).trim() } : {}),
         estado:      String(r[6]||'').toUpperCase()==='SI' ? 'pagado' : 'pendiente'
       }))
       preview.innerHTML = `
