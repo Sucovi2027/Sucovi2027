@@ -149,20 +149,55 @@ export function renderStandPanel(app, bodega) {
     actions: [`<button class="btn-back btn" onclick="sessionStorage.removeItem('stand-auth-${bodega.id}');location.reload()">Salir</button>`]
   }) + `
     <div class="wrap">
-      <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
-        <button id="sf-pend" class="btn"
-          onclick="window._setSF('pendientes',this)"
-          style="font-size:11px;background:#EAF3DE;color:#3B6D11;border-color:#3B6D11">
-          🟢 Listos para retirar
+      <!-- Tabs -->
+      <div style="display:flex;border-bottom:2px solid #E8EFF5;margin-bottom:12px;overflow-x:auto">
+        <button id="tab-pedidos" class="btn" onclick="window._setTab('pedidos',this)"
+          style="font-size:12px;border:none;border-radius:0;border-bottom:2px solid #5BA4CF;
+          color:#5BA4CF;font-weight:600;padding:8px 12px;margin-bottom:-2px;background:none">
+          📋 Pedidos
         </button>
-        <button id="sf-all" class="btn" onclick="window._setSF('todos',this)" style="font-size:11px">
-          📋 Todos
+        <button id="tab-carta" class="btn" onclick="window._setTab('carta',this)"
+          style="font-size:12px;border:none;border-radius:0;border-bottom:2px solid transparent;
+          color:#888;padding:8px 12px;margin-bottom:-2px;background:none">
+          🍷 Mi carta
         </button>
-        <button class="btn btn-b" onclick="window._abrirScannerStand()" style="font-size:11px;margin-left:auto">
-          📷 Escanear voucher
+        <button id="tab-resumen" class="btn" onclick="window._setTab('resumen',this)"
+          style="font-size:12px;border:none;border-radius:0;border-bottom:2px solid transparent;
+          color:#888;padding:8px 12px;margin-bottom:-2px;background:none">
+          📊 Resumen
         </button>
       </div>
-      <div id="sp-pedidos"></div>
+
+      <!-- Tab: Pedidos -->
+      <div id="tab-content-pedidos">
+        <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+          <button id="sf-pend" class="btn"
+            onclick="window._setSF('pendientes',this)"
+            style="font-size:11px;background:#EAF3DE;color:#3B6D11;border-color:#3B6D11">
+            🟢 Listos
+          </button>
+          <button id="sf-entr" class="btn" onclick="window._setSF('entregados',this)" style="font-size:11px">
+            ✅ Entregados
+          </button>
+          <button id="sf-all" class="btn" onclick="window._setSF('todos',this)" style="font-size:11px">
+            📋 Todos
+          </button>
+          <button class="btn btn-b" onclick="window._abrirScannerStand()" style="font-size:11px;margin-left:auto">
+            📷 Voucher
+          </button>
+        </div>
+        <div id="sp-pedidos"></div>
+      </div>
+
+      <!-- Tab: Mi carta -->
+      <div id="tab-content-carta" style="display:none">
+        <div id="sp-carta"><div class="empty">Cargando carta...</div></div>
+      </div>
+
+      <!-- Tab: Resumen -->
+      <div id="tab-content-resumen" style="display:none">
+        <div id="sp-resumen"></div>
+      </div>
     </div>
 
     <!-- Scanner QR invitado -->
@@ -200,14 +235,32 @@ export function renderStandPanel(app, bodega) {
     </div>`
 
   let filtro = 'pendientes'
+  let tabActiva = 'pedidos'
+
+  window._setTab = (tab, btn) => {
+    tabActiva = tab
+    ;['tab-pedidos','tab-carta','tab-resumen'].forEach(id => {
+      const b = document.getElementById(id)
+      if (b) { b.style.borderBottomColor='transparent'; b.style.color='#888'; b.style.fontWeight='400' }
+    })
+    btn.style.borderBottomColor='#5BA4CF'; btn.style.color='#5BA4CF'; btn.style.fontWeight='600'
+    ;['pedidos','carta','resumen'].forEach(t => {
+      const el = document.getElementById('tab-content-'+t)
+      if (el) el.style.display = t===tab ? 'block' : 'none'
+    })
+    if (tab==='carta') renderCarta()
+    if (tab==='resumen') renderResumen()
+  }
+
   window._setSF = (f, btn) => {
     filtro = f
-    ;['sf-pend','sf-all'].forEach(id => {
+    ;['sf-pend','sf-entr','sf-all'].forEach(id => {
       const b = document.getElementById(id)
-      b.style.background='#fff'; b.style.color='#333'; b.style.borderColor='#ccc'
+      if (b) { b.style.background='#fff'; b.style.color='#333'; b.style.borderColor='#ccc' }
     })
     if (f==='pendientes') { btn.style.background='#EAF3DE'; btn.style.color='#3B6D11'; btn.style.borderColor='#3B6D11' }
-    else { btn.style.background='#6B1C1C'; btn.style.color='#fff'; btn.style.borderColor='#6B1C1C' }
+    else if (f==='entregados') { btn.style.background='#D1FAE5'; btn.style.color='#065F46'; btn.style.borderColor='#3A7D44' }
+    else { btn.style.background='#1A3A5C'; btn.style.color='#fff'; btn.style.borderColor='#1A3A5C' }
     renderPedidos()
   }
 
@@ -215,9 +268,12 @@ export function renderStandPanel(app, bodega) {
 
   function renderPedidos() {
     const el = document.getElementById('sp-pedidos'); if (!el) return
-    let lista = filtro==='pendientes' ? pedidos.filter(p=>p.estado==='pagado') : pedidos
+    let lista = pedidos
+    if (filtro==='pendientes') lista = pedidos.filter(p=>p.estado==='pagado')
+    else if (filtro==='entregados') lista = pedidos.filter(p=>p.estado==='entregado')
     if (!lista.length) {
-      el.innerHTML = `<div class="empty">${filtro==='pendientes'?'Sin pedidos listos para retirar 🎉':'Sin pedidos'}</div>`; return
+      const msgs = { pendientes:'Sin pedidos listos para retirar 🎉', entregados:'Todavía no se entregó nada', todos:'Sin pedidos' }
+      el.innerHTML = `<div class="empty">${msgs[filtro]||'Sin pedidos'}</div>`; return
     }
     const LE = { pagado:'Listo para retirar', entregado:'Entregado' }
     const BE = { pagado:'b-pago', entregado:'b-entr' }
@@ -245,6 +301,76 @@ export function renderStandPanel(app, bodega) {
             : '<span style="font-size:12px;color:#aaa">✓ Entregado</span>'}
         </div>
       </div>`).join('')
+  }
+
+  function renderCarta() {
+    const el = document.getElementById('sp-carta'); if (!el) return
+    el.innerHTML = '<div class="empty" style="padding:16px">Cargando...</div>'
+    const { escucharVinos } = import('../firebase.js').then ? 
+      { escucharVinos: null } : { escucharVinos: null }
+    // Use dynamic import
+    import('../firebase.js').then(({ escucharVinos }) => {
+      escucharVinos(bodega.id, vinos => {
+        if (!vinos.length) { el.innerHTML = '<div class="empty">Sin vinos cargados todavía</div>'; return }
+        const fmt = n => Number(n).toLocaleString('es-AR')
+        el.innerHTML = vinos.map(v => `
+          <div class="card" style="margin-bottom:8px">
+            <div style="font-size:14px;font-weight:500;color:#1A3A5C">${v.nombre}</div>
+            <div style="font-size:11px;color:#888;margin-top:2px">
+              ${v.varietal||''}${v.cosecha?' · '+v.cosecha:''}
+            </div>
+            ${v.descripcion?`<div style="font-size:12px;color:#666;margin-top:2px">${v.descripcion}</div>`:''}
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+              ${(v.unidades||[]).map(u=>`
+                <span style="background:#EBF4FA;color:#1A3A5C;padding:3px 10px;
+                  border-radius:20px;font-size:12px;font-weight:500">
+                  ${u.u}: $${fmt(u.p)}
+                </span>`).join('')}
+            </div>
+          </div>`).join('')
+      })
+    }).catch(() => {
+      el.innerHTML = '<div class="empty">Error cargando carta</div>'
+    })
+  }
+
+  function renderResumen() {
+    const el = document.getElementById('sp-resumen'); if (!el) return
+    const fmt = n => Number(n).toLocaleString('es-AR')
+    const entregados = pedidos.filter(p => p.estado === 'entregado')
+    const pendientes = pedidos.filter(p => p.estado === 'pagado')
+    const totalEnt   = entregados.reduce((s,p) => s+(p.total||0), 0)
+    const totalPend  = pendientes.reduce((s,p) => s+(p.total||0), 0)
+    const totalAll   = pedidos.reduce((s,p) => s+(p.total||0), 0)
+
+    // Count by product
+    const byProd = {}
+    entregados.forEach(p => {
+      (p.items||[]).forEach(i => {
+        const k = i.vinoNombre + ' — ' + i.unidad
+        if (!byProd[k]) byProd[k] = { cant: 0, total: 0 }
+        byProd[k].cant  += i.qty || 1
+        byProd[k].total += i.sub || 0
+      })
+    })
+    const sorted = Object.entries(byProd).sort((a,b) => b[1].total - a[1].total)
+
+    el.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px">
+        <div class="stat"><div class="v" style="color:#3A7D44">$${fmt(totalEnt)}</div><div class="l">Entregado</div></div>
+        <div class="stat"><div class="v" style="color:#D97706">$${fmt(totalPend)}</div><div class="l">Por entregar</div></div>
+        <div class="stat"><div class="v">$${fmt(totalAll)}</div><div class="l">Total vendido</div></div>
+      </div>
+      <div class="card">
+        <p style="font-size:12px;font-weight:500;color:#1A3A5C;margin-bottom:8px">Detalle por vino (entregados)</p>
+        ${sorted.length ? sorted.map(([prod, data]) => `
+          <div style="display:flex;justify-content:space-between;padding:6px 0;
+            border-bottom:.5px solid #E8EFF5;font-size:12px">
+            <span>${prod}</span>
+            <span style="color:#888">${data.cant} u.</span>
+            <span style="font-weight:500">$${fmt(data.total)}</span>
+          </div>`).join('') : '<div style="color:#aaa;font-size:12px;padding:8px 0">Sin entregas todavía</div>'}
+      </div>`
   }
 
   window._entregarPedido = async (fireId) => { await marcarEntregado(fireId) }
