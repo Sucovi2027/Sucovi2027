@@ -4,11 +4,13 @@
   <meta charset="utf-8">
   <title>Sucovi 2027</title>
   <script>
+    // GitHub Pages SPA redirect - preserva la base /Sucovi2027/
+    var repo = '/Sucovi2027';
     var l = window.location;
+    var path = l.pathname.replace(repo, '') || '/';
     l.replace(
       l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
-      l.pathname.split('/').slice(0, 2).join('/') +
-      '/?p=' + l.pathname.slice(1).replace(/&/g, '~and~') +
+      repo + '/?p=' + path.slice(1).replace(/&/g, '~and~') +
       (l.search ? '&q=' + l.search.slice(1).replace(/&/g, '~and~') : '') +
       l.hash
     );

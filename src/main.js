@@ -12,7 +12,8 @@ import { renderRegistro }   from './pages/registro.js'
 import { renderCarrito }    from './pages/carrito.js'
 
 async function route() {
-  const path   = window.location.pathname
+  const base = '/Sucovi2027'
+  const path   = window.location.pathname.replace(base, '') || '/'
   const params = new URLSearchParams(window.location.search)
   const app    = document.getElementById('app')
 
@@ -74,7 +75,8 @@ window.addEventListener('popstate', route)
 ;(function() {
   var p = window.location.search.match(/[?&]p=([^&]+)/)
   if (p) {
+    var base = '/Sucovi2027'
     var path = decodeURIComponent(p[1].replace(/~and~/g, '&'))
-    window.history.replaceState(null, null, '/' + path)
+    window.history.replaceState(null, null, base + '/' + path)
   }
 })()
