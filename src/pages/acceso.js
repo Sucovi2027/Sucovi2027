@@ -198,7 +198,7 @@ export async function renderAcceso(app, token) {
             // Match stand URL pattern
             const match = raw.match(/\/stand\/(\d+)/)
             if (match) {
-              window.location.href = '/stand/' + match[1] + '?inv=${token}'
+              window.location.href = '/stand/' + match[1] + '?inv=' + token
             }
             return
           }
