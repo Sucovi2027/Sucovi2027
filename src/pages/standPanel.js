@@ -236,13 +236,11 @@ export function renderStandPanel(app, bodega) {
 
   window._abrirScannerStand = async () => {
     document.getElementById('scan-overlay-stand').style.display = 'flex'
-    try {
       await window._initScanner('scan-video-stand', (raw) => {
         window._cerrarScannerStand()
         const pedido = pedidos.find(p => raw.includes(p.fireId))
         if (pedido) mostrarVoucherModal(pedido)
       }, 'scan-status-stand')
-  }
 
   function mostrarVoucherModal(p) {
     const pago = p.estado === 'pagado'
@@ -270,7 +268,8 @@ export function renderStandPanel(app, bodega) {
   }
 
   window._cerrarScannerStand = () => {
-    if (scannerStream) { scannerStream.getTracks().forEach(t=>t.stop()); scannerStream=null }
+    window._scannerStop?.()
     document.getElementById('scan-overlay-stand').style.display = 'none'
   }
+}
 }

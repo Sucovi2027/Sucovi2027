@@ -1,373 +1,83 @@
-  await new Promise((res, rej) => {
-    const s = document.createElement('script')
-    s.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js'
-    s.onload = res; s.onerror = rej
-    document.head.appendChild(s)
-  })
-}
-
-  if (statusEl) statusEl.textContent = 'Iniciando cámara...'
-  
-  try {
-    await _loadJsQR()
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-    const video = document.getElementById(videoId)
-    if (!video) { stream.getTracks().forEach(t => t.stop()); return }
-    video.srcObject = stream
-
-    const canvas = document.createElement('canvas')
-    const ctx = canvas.getContext('2d', { willReadFrequently: true })
-    let active = true
-
-      stream.getTracks().forEach(t => t.stop())
-
-    if (statusEl) statusEl.textContent = 'Buscando QR...'
-
-    const tick = () => {
-      if (!active) return
-      if (video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth > 0) {
-        canvas.width = video.videoWidth
-        canvas.height = video.videoHeight
-        ctx.drawImage(video, 0, 0)
-        const img = ctx.getImageData(0, 0, canvas.width, canvas.height)
-        const code = window.jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' })
-        if (code && code.data) {
-          return
-        }
-      }
-      requestAnimationFrame(tick)
-    }
-    video.addEventListener('loadeddata', () => requestAnimationFrame(tick))
-
-  } catch(e) {
-    if (statusEl) statusEl.textContent = 'No se pudo acceder a la cámara. Ingresá el código manualmente.'
-  }
-}
-
-
-  if (!window.jsQR) {
-    await new Promise((resolve, reject) => {
-      const s = document.createElement('script')
-      s.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js'
-      s.onload = resolve
-      s.onerror = reject
-      document.head.appendChild(s)
-    })
-  }
-  
-  let stream = null
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-    const video = document.getElementById(videoId)
-    if (!video) return null
-    video.srcObject = stream
-    await video.play()
-    
-    const canvas = document.createElement('canvas')
-    const ctx = canvas.getContext('2d')
-    let scanning = true
-    
-    const scan = () => {
-      if (!scanning || !video.videoWidth) { if (scanning) requestAnimationFrame(scan); return }
-      canvas.width = video.videoWidth
-      canvas.height = video.videoHeight
-      ctx.drawImage(video, 0, 0)
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-      const code = window.jsQR(imageData.data, imageData.width, imageData.height)
-      if (code) { scanning = false; stopStream(stream); onResult(code.data) }
-      else if (scanning) requestAnimationFrame(scan)
-    }
-    requestAnimationFrame(scan)
-    
-    return () => { scanning = false; stopStream(stream) }
-  } catch(e) {
-    onError(e.message)
-    return null
-  }
-}
-
-function stopStream(stream) {
-  if (stream) stream.getTracks().forEach(t => t.stop())
-}
-
-import { buildHeader } from '../header.js'
 // src/pages/caja.js
-import { escucharInvitados, leerCarrito, crearPedidosDesdeCarrito,
-         vaciarCarrito, escucharPedidos, marcarEntregado } from '../firebase.js'
+import { escucharPedidos, avanzarEstado } from '../firebase.js'
 import { injectStyles } from '../styles.js'
-
 const fmt = n => Number(n).toLocaleString('es-AR')
+const LE = { pendiente:'Pendiente', pagado:'Pagado', listo:'Listo', entregado:'Entregado' }
+const BE = { pendiente:'b-pend', pagado:'b-pago', listo:'b-list', entregado:'b-entr' }
+const BT = { pendiente:'Cobrar ✓', pagado:'Listo ✓', listo:'Entregar ✓' }
+const BC = { pendiente:'btn-g', pagado:'btn-b', listo:'btn-v' }
+const SE = { pendiente:'pagado', pagado:'listo', listo:'entregado' }
 
 export function renderCaja(app) {
   injectStyles()
-
-  let invitados = [], pedidosExistentes = [], vista = 'cobrar'
-  let invSeleccionado = null, carritoInv = []
+  let pedidos = [], filtro = 'pendiente'
 
   app.innerHTML = `
-    ${buildHeader({ title:'💰 Caja central', sub:'Sucovi 2027 · Roma 656, Olivos', backHref:'/admin' })}
-
-    <!-- tabs -->
-    <div class="nav">
-      <button class="on" onclick="window._cajaVista('cobrar',this)">💳 Cobrar</button>
-      <button onclick="window._cajaVista('pedidos',this)">📋 Pedidos pagados</button>
-      <button onclick="window._cajaVista('logistica',this)">🚚 Envíos</button>
+    <div class="hdr">
+      <div><h1>💰 Caja central</h1><div class="sub">Cobrar pedidos · Sucovi 2027</div></div>
+      <a href="/admin" class="btn" style="font-size:11px;padding:5px 9px;color:#fff;border-color:rgba(255,255,255,.3);text-decoration:none">← Panel</a>
     </div>
-
-    <div id="caja-content" class="wrap"></div>
-
-    <!-- Scanner overlay -->
-    <div id="scan-overlay" class="scan-overlay" style="display:none">
-      <p style="color:#fff;font-size:14px;font-weight:500">Apuntá al QR del invitado</p>
-      <div class="scan-frame">
-        <video id="scan-video" autoplay playsinline></video>
-        <div class="scan-corner tl"></div><div class="scan-corner tr"></div>
-        <div class="scan-corner bl"></div><div class="scan-corner br"></div>
+    <div class="gold"></div>
+    <div class="wrap">
+      <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
+        <button id="cf-p" class="btn" onclick="window._setCF('pendiente',this)"
+          style="font-size:11px;background:#FAEEDA;color:#854F0B;border-color:#C9A96E">🟠 Pendientes</button>
+        <button id="cf-o" class="btn" onclick="window._setCF('pagado',this)" style="font-size:11px">✅ Pagados</button>
+        <button id="cf-a" class="btn" onclick="window._setCF('',this)" style="font-size:11px">📋 Todos</button>
       </div>
-      <p id="scan-status" style="color:#C9A96E;font-size:13px">Buscando QR...</p>
-      <button class="btn" onclick="window._cerrarScanner()"
-        style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)">
-        Cancelar
-      </button>
+      <div id="caja-lista"></div>
     </div>`
 
-  escucharInvitados(data => { invitados = data })
-  escucharPedidos(data => { pedidosExistentes = data; if (vista !== 'cobrar') renderVista() })
+  const unsub = escucharPedidos(data => { pedidos = data; render() })
 
-  window._cajaVista = (v, btn) => {
-    vista = v; invSeleccionado = null
-    document.querySelectorAll('.nav button').forEach(b => b.classList.remove('on'))
-    btn.classList.add('on')
-    renderVista()
+  window._setCF = (f, btn) => {
+    filtro = f
+    ;['cf-p','cf-o','cf-a'].forEach(id => {
+      const b = document.getElementById(id)
+      b.style.background='#fff'; b.style.color='#222'; b.style.borderColor='#ccc'
+    })
+    if (f==='pendiente') { btn.style.background='#FAEEDA'; btn.style.color='#854F0B'; btn.style.borderColor='#C9A96E' }
+    else if (f==='pagado') { btn.style.background='#EAF3DE'; btn.style.color='#3B6D11'; btn.style.borderColor='#3B6D11' }
+    else { btn.style.background='#6B1C1C'; btn.style.color='#fff'; btn.style.borderColor='#6B1C1C' }
+    render()
   }
 
-  function renderVista() {
-    if (vista === 'cobrar') renderCobrar()
-    if (vista === 'pedidos') renderPedidosPagados()
-    if (vista === 'logistica') renderEnvios()
-  }
+  window._avz = async (fireId, estado) => { await avanzarEstado(fireId, estado) }
 
-  // ── COBRAR ────────────────────────────────────────────────────────────
-  function renderCobrar() {
-    const el = document.getElementById('caja-content')
-    if (invSeleccionado) { renderCobroInvitado(); return }
-    el.innerHTML = `
-      <p style="font-size:13px;color:#666;margin-bottom:12px">
-        Buscá al invitado por código o escaneá su QR
-      </p>
-      <div style="display:flex;gap:8px;margin-bottom:16px">
-        <input id="buscar-caja" placeholder="Código INV-0001 o nombre..."
-          style="flex:1" oninput="window._buscarInv()"
-          onkeydown="if(event.key==='Enter') window._buscarInv(true)">
-        <button class="btn btn-v" onclick="window._abrirScanner()">📷 QR</button>
-      </div>
-      <div id="resultados-busqueda"></div>`
-  }
-
-  window._buscarInv = (autoselect = false) => {
-    const q = (document.getElementById('buscar-caja')?.value || '').toLowerCase().trim()
-    if (!q) { document.getElementById('resultados-busqueda').innerHTML = ''; return }
-    const res = invitados.filter(i =>
-      i.estado !== 'invalidado' &&
-      ((i.codigo||'').toLowerCase().includes(q) ||
-       (i.nombre+' '+i.apellido).toLowerCase().includes(q)))
-
-    if (autoselect && res.length === 1) { window._seleccionarInv(res[0].fireId); return }
-
-    const el = document.getElementById('resultados-busqueda'); if (!el) return
-    if (!res.length) { el.innerHTML = '<div class="empty">Sin resultados</div>'; return }
-    el.innerHTML = res.map(i => `
-      <div class="card" style="margin-bottom:8px;cursor:pointer;display:flex;
-        align-items:center;gap:10px" onclick="window._seleccionarInv('${i.fireId}')">
-        <div class="avatar">${i.nombre[0]}${i.apellido[0]}</div>
-        <div style="flex:1">
-          <div style="font-size:14px;font-weight:500">${i.nombre} ${i.apellido}</div>
-          <div style="font-size:12px;color:#888">${i.codigo} · ${i.tel}</div>
-        </div>
-        <span class="badge ${i.estado==='pagado'||i.estado==='ingresado'?'b-pago':'b-pend'}">
-          ${i.estado==='pagado'||i.estado==='ingresado'?'Bono pagado':'Pendiente'}
-        </span>
-        <span style="color:#6B1C1C;font-size:18px">›</span>
-      </div>`).join('')
-  }
-
-  window._seleccionarInv = async (fireId) => {
-    invSeleccionado = invitados.find(i => i.fireId === fireId)
-    if (!invSeleccionado) return
-    carritoInv = await leerCarrito(fireId)
-    renderCobroInvitado()
-  }
-
-  async function renderCobroInvitado() {
-    const el = document.getElementById('caja-content'); if (!el) return
-    const inv = invSeleccionado
-    const items = carritoInv.filter(s => s.items?.length)
-    const total = items.reduce((s,si) => s+(si.items||[]).reduce((ss,i)=>ss+(i.sub||0),0),0)
-
-    // Verificar si ya tiene pedidos pagados hoy
-    const pedHoy = pedidosExistentes.filter(p => p.invFireId === inv.fireId)
-
-    el.innerHTML = `
-      <button class="btn" onclick="window._volverCobrar()"
-        style="margin-bottom:14px;color:#6B1C1C;border-color:#6B1C1C">
-        ← Buscar otro invitado
-      </button>
-
-      <div class="card" style="margin-bottom:12px">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-          <div class="avatar" style="width:44px;height:44px;font-size:15px">
-            ${inv.nombre[0]}${inv.apellido[0]}
-          </div>
-          <div>
-            <div style="font-size:16px;font-weight:500">${inv.nombre} ${inv.apellido}</div>
-            <div style="font-size:12px;color:#888">${inv.codigo}${inv.tel?' · '+inv.tel:''}</div>
-          </div>
-        </div>
-        ${pedHoy.length ? `
-          <div style="background:#EAF3DE;border-radius:6px;padding:6px 10px;font-size:12px;
-            color:#3B6D11;margin-bottom:8px">
-            ✅ Ya tiene ${pedHoy.length} pedido${pedHoy.length>1?'s':''} pagado${pedHoy.length>1?'s':''} esta noche
-          </div>` : ''}
-      </div>
-
-      ${!items.length ? `
-        <div class="card" style="text-align:center;padding:24px">
-          <p style="font-size:15px;color:#aaa;margin-bottom:8px">El carrito está vacío</p>
-          <p style="font-size:13px;color:#aaa">
-            ${inv.nombre} todavía no agregó vinos desde los stands.
-          </p>
-        </div>` : `
-        ${items.map(stand => `
-          <div class="card" style="margin-bottom:10px">
-            <div style="font-size:13px;font-weight:500;color:#6B1C1C;margin-bottom:8px">
-              🍷 ${stand.standNombre} · Stand #${stand.standId}
-              <span class="badge b-envi" style="margin-left:6px;${stand.retiro!=='envio'?'display:none':''}">
-                🚚 Envío
-              </span>
+  function render() {
+    const el = document.getElementById('caja-lista'); if (!el) return
+    const fil = pedidos.filter(p => !filtro || p.estado === filtro)
+    if (!fil.length) { el.innerHTML = '<div class="empty">Sin pedidos</div>'; return }
+    el.innerHTML = fil.map(p => {
+      const hora = p.creadoEn?.toDate ? p.creadoEn.toDate().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}) : '--:--'
+      const num = '#' + (p.fireId?.slice(-4).toUpperCase() || '????')
+      return `
+        <div class="card" style="margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+            <div>
+              <span style="font-size:20px;font-weight:500;color:#6B1C1C">${num}</span>
+              <span style="font-size:13px;font-weight:500;margin-left:8px">${p.invNombre || ''}</span>
+              ${p.retiro==='envio' ? '<span class="badge b-envi" style="margin-left:6px">🚚 Envío</span>' : ''}
             </div>
-            ${(stand.items||[]).map(i => `
-              <div style="display:flex;justify-content:space-between;font-size:13px;
-                color:#555;padding:4px 0;border-bottom:.5px solid #f5f0eb">
-                <span>${i.desc}</span>
-                <strong>$${fmt(i.sub)}</strong>
-              </div>`).join('')}
-            <div style="display:flex;justify-content:space-between;font-size:13px;
-              font-weight:500;margin-top:8px;padding-top:6px;border-top:.5px solid #e0d5c8">
-              <span>Subtotal</span>
-              <span>$${fmt((stand.items||[]).reduce((s,i)=>s+(i.sub||0),0))}</span>
+            <div style="text-align:right">
+              <span class="badge ${BE[p.estado]}">${LE[p.estado]}</span>
+              <div style="font-size:10px;color:#aaa;margin-top:2px">${hora}</div>
             </div>
-          </div>`).join('')}
-
-        <div class="card" style="margin-bottom:14px">
-          <div style="display:flex;justify-content:space-between;font-size:20px;font-weight:500">
-            <span>TOTAL A COBRAR</span>
-            <span style="color:#6B1C1C">$${fmt(total)}</span>
           </div>
-          <p style="font-size:12px;color:#888;margin-top:4px">
-            ${items.length} stand${items.length>1?'s':''}
-          </p>
-        </div>
-
-        <div id="cobro-msg" style="font-size:12px;text-align:center;margin-bottom:8px"></div>
-        <button class="btn btn-g" style="width:100%;padding:14px;font-size:16px"
-          onclick="window._cobrar()">
-          ✓ Cobrar $${fmt(total)} y generar vouchers
-        </button>`}
-    `
+          <div style="font-size:12px;color:#6B1C1C;font-weight:500;margin-bottom:5px">
+            📍 ${p.standNombre} · Stand #${p.standId}
+          </div>
+          <div style="font-size:12px;color:#666;margin-bottom:8px;line-height:1.7">
+            ${(p.items||[]).map(i=>`${i.desc} <strong>$${fmt(i.sub)}</strong>`).join('<br>')}
+            ${p.retiro==='envio'&&p.envio ? `<div style="margin-top:4px;font-size:11px;color:#5A1E99">🚚 ${p.envio.dir} · ${p.envio.tel}</div>` : ''}
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;border-top:.5px solid #e0d5c8;padding-top:8px">
+            <span style="font-size:20px;font-weight:500">$${fmt(p.total||0)}</span>
+            ${SE[p.estado]
+              ? `<button class="btn ${BC[p.estado]}" onclick="window._avz('${p.fireId}','${p.estado}')">${BT[p.estado]}</button>`
+              : '<span style="font-size:12px;color:#aaa">Completado</span>'}
+          </div>
+        </div>`
+    }).join('')
   }
-
-  window._volverCobrar = () => { invSeleccionado = null; carritoInv = []; renderCobrar() }
-
-  window._cobrar = async () => {
-    const inv   = invSeleccionado
-    const items = carritoInv.filter(s => s.items?.length)
-    if (!items.length) return
-    const btn = document.querySelector('#caja-content .btn-g')
-    if (btn) { btn.disabled = true; btn.textContent = 'Procesando...' }
-    const msg = document.getElementById('cobro-msg')
-    try {
-      await crearPedidosDesdeCarrito(inv, items)
-      await vaciarCarrito(inv.fireId)
-      msg.innerHTML = `<span style="color:#3B6D11;font-size:14px;font-weight:500">
-        ✅ ¡Cobrado! Se generaron ${items.length} voucher${items.length>1?'s':''}.
-        El cliente puede verlos en su QR de acceso.
-      </span>`
-      if (btn) { btn.style.display = 'none' }
-    } catch(e) {
-      msg.innerHTML = `<span style="color:#A32D2D">Error: ${e.message}</span>`
-      if (btn) { btn.disabled = false; btn.textContent = 'Reintentar' }
-    }
-  }
-
-  // ── PEDIDOS PAGADOS ───────────────────────────────────────────────────
-  function renderPedidosPagados() {
-    const el = document.getElementById('caja-content')
-    const peds = pedidosExistentes.filter(p => p.retiro !== 'envio')
-    if (!peds.length) { el.innerHTML = '<div class="empty">Sin pedidos aún</div>'; return }
-    const LE = { pagado:'Pagado', listo:'Listo', entregado:'Entregado' }
-    const BE = { pagado:'b-pago', listo:'b-list', entregado:'b-entr' }
-    el.innerHTML = peds.map(p => `
-      <div class="card" style="margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <span style="font-size:13px;font-weight:500;color:#6B1C1C;min-width:52px">
-          #${p.fireId?.slice(-4).toUpperCase()}
-        </span>
-        <div style="flex:1;min-width:80px">
-          <div style="font-size:12px;font-weight:500">${p.invNombre||''}</div>
-          <div style="font-size:11px;color:#888">${p.standNombre}</div>
-        </div>
-        <span style="font-size:12px;color:#666;flex:2;min-width:80px">
-          ${(p.items||[]).map(i=>i.desc).join(' · ')}
-        </span>
-        <span style="font-size:14px;font-weight:500">$${fmt(p.total||0)}</span>
-        <span class="badge ${BE[p.estado]||'b-pago'}">${LE[p.estado]||p.estado}</span>
-      </div>`).join('')
-  }
-
-  // ── ENVÍOS ────────────────────────────────────────────────────────────
-  function renderEnvios() {
-    const el = document.getElementById('caja-content')
-    const envios = pedidosExistentes.filter(p => p.retiro === 'envio')
-    if (!envios.length) { el.innerHTML = '<div class="empty">Sin pedidos de envío</div>'; return }
-    el.innerHTML = envios.map(p => `
-      <div class="card" style="margin-bottom:10px;border-left:3px solid #5A1E99">
-        <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-          <span style="font-size:15px;font-weight:500;color:#6B1C1C">
-            #${p.fireId?.slice(-4).toUpperCase()}
-          </span>
-          <span class="badge b-envi">🚚 Envío</span>
-        </div>
-        <div style="font-size:13px;font-weight:500;margin-bottom:4px">${p.invNombre||''}</div>
-        <div style="font-size:12px;color:#666;margin-bottom:6px">
-          ${p.standNombre} · ${(p.items||[]).map(i=>i.desc).join(' · ')}
-        </div>
-        <div style="font-size:15px;font-weight:500">$${fmt(p.total||0)}</div>
-      </div>`).join('')
-  }
-
-  // ── QR SCANNER ────────────────────────────────────────────────────────
-  window._abrirScanner = async () => {
-    const overlay = document.getElementById('scan-overlay')
-    overlay.style.display = 'flex'
-    try {
-    await window._initScanner('scan-video', async (raw) => {
-      window._cerrarScanner()
-      const matchCod   = raw.match(/INV-\d+/)
-      const matchToken = raw.match(/inv=([A-Z0-9]+)/i)
-      if (matchCod) {
-        document.getElementById('buscar-caja').value = matchCod[0]
-        window._buscarInv(true)
-      } else if (matchToken) {
-        const { buscarInvitadoPorToken } = await import('../firebase.js')
-        const inv = await buscarInvitadoPorToken(matchToken[1])
-        if (inv) window._seleccionarInv(inv.fireId)
-      }
-    }, 'scan-status')
-  }
-
-  window._cerrarScanner = () => {
-    window._scannerStop?.()
-    document.getElementById('scan-overlay').style.display = 'none'
-  }
-
-  renderCobrar()
 }
