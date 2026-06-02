@@ -444,7 +444,7 @@ export function renderStandPanel(app, bodega) {
             const matchCod   = raw.match(/INV-\d+/)
             if (matchToken) {
               // Navigate to this stand's menu with the invitado's token
-              window.location.href = '/stand/${bodega.id}?inv=' + matchToken[1]
+              window.location.href = `/stand/${bodega.id}?inv=` + matchToken[1]
             } else if (matchCod) {
               if (statusEl) statusEl.textContent = 'Usá el link del invitado, no el código.'
             }
