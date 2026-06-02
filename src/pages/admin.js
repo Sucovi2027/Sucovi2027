@@ -1,3 +1,4 @@
+import { LOGO } from '../logo.js'
 // src/pages/admin.js
 import { buildHeader } from '../header.js'
 import { BODEGAS, escucharInvitados, crearInvitado, actualizarInvitado,
@@ -163,6 +164,7 @@ export function renderAdmin(app) {
           ${eBdg(i.estado)}
           <div style="display:flex;gap:4px;margin-left:auto;flex-wrap:wrap">
             <button class="btn" style="padding:4px 8px;font-size:11px" onclick="window._abrirWA('${i.fireId}')">📱 WA</button>
+            <button class="btn btn-b" style="padding:4px 8px;font-size:11px" onclick="window._descargarQR('${i.fireId}')">📥 QR</button>
             ${i.estado!=='invalidado'
               ?`<button class="btn" style="padding:4px 8px;font-size:11px;color:#A32D2D;border-color:#A32D2D" onclick="window._invalidar('${i.fireId}','${i.nombre} ${i.apellido}')">✕ Invalidar</button>`
               :`<button class="btn" style="padding:4px 8px;font-size:11px;color:#3B6D11;border-color:#3B6D11" onclick="window._reactivar('${i.fireId}')">↩ Reactivar</button>`}
@@ -428,6 +430,150 @@ export function renderAdmin(app) {
     drawQR('mw-canvas',inv.codigo||inv.fireId,80)
     document.getElementById('modal-wa').style.display='flex'
   }
+  window._descargarQR = async (fireId) => {
+    const inv = invitados.find(i => i.fireId === fireId)
+    if (!inv) return
+    // Load QR lib
+    if (!window.qrcode) {
+      await new Promise((res,rej) => {
+        const s = document.createElement('script')
+        s.src = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js'
+        s.onload = res; s.onerror = rej
+        document.head.appendChild(s)
+      })
+    }
+    const base = window.location.origin
+    const link = base + '/acceso?inv=' + inv.token
+
+    // Create canvas
+    const canvas = document.createElement('canvas')
+    const W = 600, H = 800
+    canvas.width = W; canvas.height = H
+    const ctx = canvas.getContext('2d')
+
+    // Background gradient
+    const grad = ctx.createLinearGradient(0, 0, 0, H)
+    grad.addColorStop(0, '#1A3A5C')
+    grad.addColorStop(0.55, '#2C5F8A')
+    grad.addColorStop(1, '#3A7D44')
+    ctx.fillStyle = grad
+    ctx.fillRect(0, 0, W, H)
+
+    // Gold bar
+    ctx.fillStyle = '#C9A96E'
+    ctx.fillRect(0, H - 4, W, 4)
+
+    // Event name
+    ctx.fillStyle = 'rgba(255,255,255,0.7)'
+    ctx.font = '500 18px system-ui, -apple-system, sans-serif'
+    ctx.textAlign = 'center'
+    ctx.fillText('SUCOVI 2027 · FERIA DE VINOS & DEGUSTACIÓN', W/2, 54)
+
+    // Invitado name
+    ctx.fillStyle = '#ffffff'
+    ctx.font = '500 38px system-ui, -apple-system, sans-serif'
+    ctx.fillText(inv.nombre + ' ' + inv.apellido, W/2, 110)
+
+    // Code
+    ctx.fillStyle = 'rgba(255,255,255,0.75)'
+    ctx.font = '400 22px system-ui, -apple-system, sans-serif'
+    ctx.fillText(inv.codigo, W/2, 146)
+
+    // Badge
+    ctx.fillStyle = '#3A7D44'
+    const bw = 200, bh = 34, bx = W/2 - bw/2, by = 164
+    roundRect(ctx, bx, by, bw, bh, 17)
+    ctx.fill()
+    ctx.fillStyle = '#ffffff'
+    ctx.font = '500 15px system-ui, -apple-system, sans-serif'
+    ctx.fillText('✅ Bono confirmado', W/2, by + 23)
+
+    // QR white card
+    const cardW = 320, cardH = 340, cardX = W/2 - cardW/2, cardY = 220
+    ctx.fillStyle = '#ffffff'
+    roundRect(ctx, cardX, cardY, cardW, cardH, 16)
+    ctx.fill()
+
+    // Draw QR inside card
+    const qr = qrcode(0, 'M')
+    qr.addData(link)
+    qr.make()
+    const modules = qr.getModuleCount()
+    const qrSize = 240
+    const qrX = cardX + (cardW - qrSize) / 2
+    const qrY = cardY + 24
+    const cellSize = qrSize / modules
+    ctx.fillStyle = '#000000'
+    for (let row = 0; row < modules; row++) {
+      for (let col = 0; col < modules; col++) {
+        if (qr.isDark(row, col)) {
+          ctx.fillRect(qrX + col*cellSize, qrY + row*cellSize, cellSize, cellSize)
+        }
+      }
+    }
+
+    // Code under QR
+    ctx.fillStyle = '#1A3A5C'
+    ctx.font = '500 26px system-ui, -apple-system, sans-serif'
+    ctx.fillText(inv.codigo, W/2, cardY + cardH - 44)
+    ctx.fillStyle = '#888'
+    ctx.font = '400 14px system-ui, -apple-system, sans-serif'
+    ctx.fillText('Mostrá este QR en la entrada', W/2, cardY + cardH - 20)
+
+    // Bottom info
+    ctx.fillStyle = 'rgba(255,255,255,0.85)'
+    ctx.font = '400 18px system-ui, -apple-system, sans-serif'
+    ctx.fillText('Sáb 20 jun 2026  ·  19:30 hs', W/2, cardY + cardH + 50)
+    ctx.fillText('Roma 656, Olivos', W/2, cardY + cardH + 80)
+
+    ctx.fillStyle = 'rgba(255,255,255,0.5)'
+    ctx.font = '400 13px system-ui, -apple-system, sans-serif'
+    ctx.fillText('Personal e intransferible · Un solo uso en la entrada', W/2, H - 24)
+
+    // Logo abajo a la derecha
+    await new Promise(res => {
+      const img = new Image()
+      img.onload = () => {
+        const logoSize = 70
+        const lx = W - logoSize - 20
+        const ly = H - logoSize - 20
+        ctx.save()
+        ctx.beginPath()
+        ctx.arc(lx + logoSize/2, ly + logoSize/2, logoSize/2 + 3, 0, Math.PI*2)
+        ctx.fillStyle = 'rgba(255,255,255,0.25)'
+        ctx.fill()
+        ctx.beginPath()
+        ctx.arc(lx + logoSize/2, ly + logoSize/2, logoSize/2, 0, Math.PI*2)
+        ctx.clip()
+        ctx.drawImage(img, lx, ly, logoSize, logoSize)
+        ctx.restore()
+        res()
+      }
+      img.onerror = res
+      img.src = LOGO
+    })
+
+    // Download
+    const a = document.createElement('a')
+    a.download = 'QR-' + inv.codigo + '.png'
+    a.href = canvas.toDataURL('image/png')
+    a.click()
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath()
+    ctx.moveTo(x + r, y)
+    ctx.lineTo(x + w - r, y)
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r)
+    ctx.lineTo(x + w, y + h - r)
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h)
+    ctx.lineTo(x + r, y + h)
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r)
+    ctx.lineTo(x, y + r)
+    ctx.quadraticCurveTo(x, y, x + r, y)
+    ctx.closePath()
+  }
+
   window._pagarM=async()=>{const inv=invitados.find(i=>i.fireId===modalInvFireId);if(!inv||inv.estado!=='pendiente')return;await actualizarInvitado(inv.fireId,{estado:'pagado'})}
   window._copWA=()=>{navigator.clipboard?.writeText(document.getElementById('mw-msg').textContent).catch(()=>{});const b=document.querySelector('#modal-wa .btn-g');const o=b.innerHTML;b.innerHTML='✓ ¡Copiado!';setTimeout(()=>b.innerHTML=o,2000)}
   window._cModal=()=>{document.getElementById('modal-wa').style.display='none';modalInvFireId=null}

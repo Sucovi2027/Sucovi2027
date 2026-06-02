@@ -165,6 +165,21 @@ export function renderStandPanel(app, bodega) {
       <div id="sp-pedidos"></div>
     </div>
 
+    <!-- Scanner QR invitado -->
+    <div id="scan-overlay-inv" class="scan-overlay" style="display:none">
+      <p style="color:#fff;font-size:14px;font-weight:500">Escaneá el QR del invitado</p>
+      <div class="scan-frame">
+        <video id="scan-video-inv" autoplay playsinline muted
+          style="width:280px;height:280px;object-fit:cover;border-radius:12px"></video>
+        <div class="scan-corner tl"></div><div class="scan-corner tr"></div>
+        <div class="scan-corner bl"></div><div class="scan-corner br"></div>
+      </div>
+      <p id="scan-status-inv" style="color:#C9A96E;font-size:13px">Buscando QR...</p>
+      <button class="btn"
+        style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)"
+        onclick="window._cerrarScannerInvitado()">Cancelar</button>
+    </div>
+
     <div id="scan-overlay-stand" class="scan-overlay" style="display:none">
       <p style="color:#fff;font-size:14px;font-weight:500">Escaneá el voucher del cliente</p>
       <div class="scan-frame">
@@ -265,6 +280,63 @@ export function renderStandPanel(app, bodega) {
       <button class="btn" style="width:100%"
         onclick="document.getElementById('voucher-modal').style.display='none'">Cerrar</button>`
     modal.style.display = 'flex'
+  }
+
+  let invStream = null, invActive = false
+
+  window._abrirScannerInvitado = async () => {
+    document.getElementById('scan-overlay-inv').style.display = 'flex'
+    const statusEl = document.getElementById('scan-status-inv')
+    try {
+      if (!window.jsQR) {
+        await new Promise((res,rej) => {
+          const s = document.createElement('script')
+          s.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js'
+          s.onload = res; s.onerror = rej
+          document.head.appendChild(s)
+        })
+      }
+      invStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+      const video = document.getElementById('scan-video-inv')
+      video.srcObject = invStream
+      invActive = true
+      if (statusEl) statusEl.textContent = 'Buscando QR del invitado...'
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d', { willReadFrequently: true })
+      const tick = () => {
+        if (!invActive) return
+        if (video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth > 0) {
+          canvas.width = video.videoWidth; canvas.height = video.videoHeight
+          ctx.drawImage(video, 0, 0)
+          const img = ctx.getImageData(0, 0, canvas.width, canvas.height)
+          const code = window.jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' })
+          if (code && code.data) {
+            const raw = code.data
+            window._cerrarScannerInvitado()
+            // Extract token from acceso URL
+            const matchToken = raw.match(/inv=([A-Z0-9]+)/i)
+            const matchCod   = raw.match(/INV-\d+/)
+            if (matchToken) {
+              // Navigate to this stand's menu with the invitado's token
+              window.location.href = '/stand/${bodega.id}?inv=' + matchToken[1]
+            } else if (matchCod) {
+              if (statusEl) statusEl.textContent = 'Usá el link del invitado, no el código.'
+            }
+            return
+          }
+        }
+        if (invActive) requestAnimationFrame(tick)
+      }
+      video.addEventListener('loadeddata', () => requestAnimationFrame(tick))
+    } catch(e) {
+      if (statusEl) statusEl.textContent = 'No se pudo acceder a la cámara.'
+    }
+  }
+
+  window._cerrarScannerInvitado = () => {
+    invActive = false
+    if (invStream) { invStream.getTracks().forEach(t => t.stop()); invStream = null }
+    document.getElementById('scan-overlay-inv').style.display = 'none'
   }
 
   window._cerrarScannerStand = () => {
