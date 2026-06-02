@@ -28,19 +28,28 @@ async function route() {
     return renderStand(app, bodega, invitado)
   }
 
-  // /panel/:id — panel del stand
+  // /panel/:id?key=XXXX — panel del stand (requiere key)
   const panelMatch = path.match(/^\/panel\/(\d+)$/)
   if (panelMatch) {
     const bodega = BODEGAS.find(b => b.id === parseInt(panelMatch[1]))
     if (!bodega) { app.innerHTML = err('Panel no encontrado'); return }
+    const key = params.get('key')
+    if (key && key !== bodega.key) { app.innerHTML = err('Acceso no autorizado'); return }
+    if (!key) {
+      // No key: show key required screen
+      app.innerHTML = err('Link inválido — usá el link completo que te enviaron')
+      return
+    }
     return renderStandPanel(app, bodega)
   }
 
-  // /bodega/:id/vinos — carga de vinos por bodega
+  // /bodega/:id/vinos?key=XXXX — carga de vinos por bodega
   const vinosMatch = path.match(/^\/bodega\/(\d+)\/vinos$/)
   if (vinosMatch) {
     const bodega = BODEGAS.find(b => b.id === parseInt(vinosMatch[1]))
     if (!bodega) { app.innerHTML = err('Bodega no encontrada'); return }
+    const key = params.get('key')
+    if (key && key !== bodega.key) { app.innerHTML = err('Acceso no autorizado'); return }
     return renderBodegaVinos(app, bodega)
   }
 

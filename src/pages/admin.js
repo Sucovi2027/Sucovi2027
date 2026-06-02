@@ -337,9 +337,17 @@ export function renderAdmin(app) {
             <div style="font-size:10px;color:#aaa;margin-bottom:8px;word-break:break-all">${base}/stand/${b.id}</div>
             <div style="display:flex;flex-direction:column;gap:5px">
               <a href="${base}/stand/${b.id}" target="_blank" class="btn btn-v" style="font-size:11px;padding:5px;text-decoration:none">Vista cliente</a>
-              <a href="${base}/panel/${b.id}" target="_blank" class="btn btn-b" style="font-size:11px;padding:5px;text-decoration:none">Panel stand</a>
-              <a href="${base}/bodega/${b.id}/vinos" target="_blank" class="btn" style="font-size:11px;padding:5px;text-decoration:none;color:#3B6D11;border-color:#3B6D11">Cargar vinos</a>
-              <div style="font-size:10px;color:#aaa">Pass: <strong>${b.pass}</strong></div>
+              <div style="display:flex;gap:4px">
+                <a href="${base}/panel/${b.id}?key=${b.key}" target="_blank" class="btn btn-b" style="font-size:11px;padding:5px;text-decoration:none;flex:1;justify-content:center">Panel</a>
+                <button class="btn" style="font-size:11px;padding:5px;color:#185FA5;border-color:#185FA5"
+                  onclick="navigator.clipboard?.writeText('${base}/panel/${b.id}?key=${b.key}').then(()=>{this.textContent='✓';setTimeout(()=>this.textContent='📋',1500)}).catch(()=>{})">📋</button>
+              </div>
+              <div style="display:flex;gap:4px">
+                <a href="${base}/bodega/${b.id}/vinos?key=${b.key}" target="_blank" class="btn" style="font-size:11px;padding:5px;text-decoration:none;color:#3A7D44;border-color:#3A7D44;flex:1;justify-content:center">Vinos</a>
+                <button class="btn" style="font-size:11px;padding:5px;color:#3A7D44;border-color:#3A7D44"
+                  onclick="navigator.clipboard?.writeText('${base}/bodega/${b.id}/vinos?key=${b.key}').then(()=>{this.textContent='✓';setTimeout(()=>this.textContent='📋',1500)}).catch(()=>{})">📋</button>
+              </div>
+              <div style="font-size:10px;color:#aaa;margin-top:2px">Pass: <strong>${b.pass}</strong></div>
             </div>
           </div>`).join('')}
       </div>`
