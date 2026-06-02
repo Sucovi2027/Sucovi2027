@@ -69,30 +69,100 @@ export function renderCaja(app) {
     if (vista === 'logistica') renderEnvios()
   }
 
+  // Cache de carritos activos
+  let carritosActivos = {} // { invFireId: { total, items } }
+
+  async function cargarCarritosActivos() {
+    // Carga carritos de todos los invitados en paralelo (solo los activos)
+    const activos = invitados.filter(i => i.estado !== 'invalidado')
+    const resultados = await Promise.all(
+      activos.map(async inv => {
+        try {
+          const items = await leerCarrito(inv.fireId)
+          const itemsConVinos = items.filter(s => s.items?.length)
+          if (!itemsConVinos.length) return null
+          const total = itemsConVinos.reduce((s,si) => s+(si.items||[]).reduce((ss,i)=>ss+(i.sub||0),0),0)
+          const cant  = itemsConVinos.reduce((s,si) => s+(si.items||[]).length,0)
+          return { fireId: inv.fireId, total, cant, stands: itemsConVinos.length }
+        } catch(e) { return null }
+      })
+    )
+    carritosActivos = {}
+    resultados.filter(Boolean).forEach(r => { carritosActivos[r.fireId] = r })
+    renderListaCobrar()
+  }
+
   function renderCobrar() {
     const el = document.getElementById('caja-content')
     if (invSeleccionado) { renderCobroInvitado(); return }
     el.innerHTML = `
-      <p style="font-size:13px;color:#666;margin-bottom:12px">
-        Buscá al invitado por código o escaneá su QR personal
-      </p>
-      <div style="display:flex;gap:8px;margin-bottom:16px">
-        <input id="buscar-caja" placeholder="Código INV-0001 o nombre..."
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <input id="buscar-caja" placeholder="Buscar por nombre o código..."
           style="flex:1" oninput="window._buscarInv()"
           onkeydown="if(event.key==='Enter') window._buscarInv(true)">
         <button class="btn btn-v" onclick="window._abrirScanner()">📷 QR</button>
       </div>
-      <div id="resultados-busqueda"></div>`
+      <div id="resultados-busqueda">
+        <p style="font-size:12px;color:#888;margin-bottom:8px">Cargando carritos activos...</p>
+      </div>`
+    cargarCarritosActivos()
+  }
+
+  function renderListaCobrar() {
+    const el = document.getElementById('resultados-busqueda'); if (!el) return
+    const q = (document.getElementById('buscar-caja')?.value || '').toLowerCase().trim()
+
+    // Get invitados with active carts, filtered by search
+    let lista = invitados.filter(i => i.estado !== 'invalidado')
+    if (q) {
+      lista = lista.filter(i =>
+        (i.codigo||'').toLowerCase().includes(q) ||
+        (i.nombre+' '+i.apellido).toLowerCase().includes(q))
+    } else {
+      // Without search: only show those with active carts
+      lista = lista.filter(i => carritosActivos[i.fireId])
+    }
+
+    if (!lista.length) {
+      el.innerHTML = q
+        ? '<div class="empty">Sin resultados</div>'
+        : '<div class="empty" style="padding:24px">Sin carritos activos — nadie ha agregado vinos todavía 🍷</div>'
+      return
+    }
+
+    el.innerHTML = (q ? '' : `<p style="font-size:11px;color:#888;margin-bottom:8px;font-weight:500">CARRITOS ACTIVOS (${lista.length})</p>`) +
+      lista.map(i => {
+        const cart = carritosActivos[i.fireId]
+        return `
+        <div class="card" style="margin-bottom:8px;cursor:pointer;display:flex;
+          align-items:center;gap:10px" onclick="window._seleccionarInv('${i.fireId}')">
+          <div class="avatar">${i.nombre[0]}${i.apellido[0]}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:14px;font-weight:500">${i.nombre} ${i.apellido}</div>
+            <div style="font-size:12px;color:#888">${i.codigo} · ${i.tel}</div>
+            ${cart ? `<div style="font-size:12px;color:#3A7D44;font-weight:500;margin-top:2px">
+              🍷 ${cart.cant} ítem${cart.cant>1?'s':''} · $${Number(cart.total).toLocaleString('es-AR')}
+              <span style="color:#888;font-weight:400"> · ${cart.stands} stand${cart.stands>1?'s':''}</span>
+            </div>` : '<div style="font-size:11px;color:#aaa;margin-top:2px">Carrito vacío</div>'}
+          </div>
+          <span class="badge ${i.estado==='pagado'||i.estado==='ingresado'?'b-pago':'b-pend'}">
+            ${i.estado==='pagado'||i.estado==='ingresado'?'Bono pagado':'Pendiente'}
+          </span>
+          <span style="color:#1A3A5C;font-size:18px">›</span>
+        </div>`
+      }).join('')
   }
 
   window._buscarInv = (autoselect = false) => {
     const q = (document.getElementById('buscar-caja')?.value || '').toLowerCase().trim()
-    if (!q) { document.getElementById('resultados-busqueda').innerHTML = ''; return }
+    if (!q) { renderListaCobrar(); return }
     const res = invitados.filter(i =>
       i.estado !== 'invalidado' &&
       ((i.codigo||'').toLowerCase().includes(q) ||
        (i.nombre+' '+i.apellido).toLowerCase().includes(q)))
     if (autoselect && res.length === 1) { window._seleccionarInv(res[0].fireId); return }
+    renderListaCobrar()
+    return
     const el = document.getElementById('resultados-busqueda'); if (!el) return
     if (!res.length) { el.innerHTML = '<div class="empty">Sin resultados</div>'; return }
     el.innerHTML = res.map(i => `

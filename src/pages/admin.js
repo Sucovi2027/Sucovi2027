@@ -165,6 +165,7 @@ export function renderAdmin(app) {
           <div style="display:flex;gap:4px;margin-left:auto;flex-wrap:wrap">
             <button class="btn" style="padding:4px 8px;font-size:11px" onclick="window._abrirWA('${i.fireId}')">📱 WA</button>
             <button class="btn btn-b" style="padding:4px 8px;font-size:11px" onclick="window._descargarQR('${i.fireId}')">📥 QR</button>
+            <button class="btn" style="padding:4px 8px;font-size:11px;color:#185FA5;border-color:#185FA5" onclick="window._editarInv('${i.fireId}')">✏️</button>
             ${i.estado!=='invalidado'
               ?`<button class="btn" style="padding:4px 8px;font-size:11px;color:#A32D2D;border-color:#A32D2D" onclick="window._invalidar('${i.fireId}','${i.nombre} ${i.apellido}')">✕ Invalidar</button>`
               :`<button class="btn" style="padding:4px 8px;font-size:11px;color:#3B6D11;border-color:#3B6D11" onclick="window._reactivar('${i.fireId}')">↩ Reactivar</button>`}
@@ -572,6 +573,48 @@ export function renderAdmin(app) {
     ctx.lineTo(x, y + r)
     ctx.quadraticCurveTo(x, y, x + r, y)
     ctx.closePath()
+  }
+
+  let editInvFireId = null
+
+  window._editarInv = (fireId) => {
+    const inv = invitados.find(i => i.fireId === fireId); if (!inv) return
+    editInvFireId = fireId
+    document.getElementById('edit-nom').value       = inv.nombre || ''
+    document.getElementById('edit-ape').value       = inv.apellido || ''
+    document.getElementById('edit-tel').value       = inv.tel || ''
+    document.getElementById('edit-email').value     = inv.email || ''
+    document.getElementById('edit-familia').value   = inv.familia || ''
+    document.getElementById('edit-comentarios').value = inv.comentarios || ''
+    document.getElementById('edit-estado').value    = inv.estado || 'pendiente'
+    document.getElementById('edit-msg').innerHTML   = ''
+    document.getElementById('modal-edit').style.display = 'flex'
+  }
+
+  window._guardarEdit = async () => {
+    const m = document.getElementById('edit-msg')
+    const n = document.getElementById('edit-nom').value.trim()
+    const a = document.getElementById('edit-ape').value.trim()
+    const t = document.getElementById('edit-tel').value.trim()
+    if (!n || !a || !t) { m.innerHTML = '<span style="color:#C0392B">Nombre, apellido y WhatsApp son obligatorios.</span>'; return }
+    m.innerHTML = '<span style="color:#888">Guardando...</span>'
+    const data = {
+      nombre: n, apellido: a, tel: t,
+      estado: document.getElementById('edit-estado').value,
+      ...(document.getElementById('edit-email').value.trim() && { email: document.getElementById('edit-email').value.trim() }),
+      ...(document.getElementById('edit-familia').value.trim() && { familia: document.getElementById('edit-familia').value.trim() }),
+      ...(document.getElementById('edit-comentarios').value.trim() && { comentarios: document.getElementById('edit-comentarios').value.trim() }),
+    }
+    try {
+      await actualizarInvitado(editInvFireId, data)
+      m.innerHTML = '<span style="color:#3A7D44">✓ Guardado correctamente</span>'
+      setTimeout(() => window._cerrarEdit(), 1200)
+    } catch(e) { m.innerHTML = `<span style="color:#C0392B">Error: ${e.message}</span>` }
+  }
+
+  window._cerrarEdit = () => {
+    document.getElementById('modal-edit').style.display = 'none'
+    editInvFireId = null
   }
 
   window._pagarM=async()=>{const inv=invitados.find(i=>i.fireId===modalInvFireId);if(!inv||inv.estado!=='pendiente')return;await actualizarInvitado(inv.fireId,{estado:'pagado'})}
