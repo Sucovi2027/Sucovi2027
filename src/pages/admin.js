@@ -85,6 +85,34 @@ export function renderAdmin(app) {
     <div id="tab-content" class="wrap"></div>
 
     <!-- Modal WA -->
+
+    <div id="modal-edit" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
+      background:rgba(0,0,0,.45);z-index:200;align-items:center;justify-content:center;padding:16px">
+      <div class="card" style="width:100%;max-width:420px;max-height:90vh;overflow-y:auto">
+        <h3 style="font-size:14px;font-weight:500;color:#1A3A5C;margin-bottom:14px">Editar invitado</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <div><label style="font-size:11px;color:#666">Nombre</label><input id="edit-nom" style="margin-top:3px"></div>
+          <div><label style="font-size:11px;color:#666">Apellido</label><input id="edit-ape" style="margin-top:3px"></div>
+        </div>
+        <div style="margin-bottom:8px"><label style="font-size:11px;color:#666">WhatsApp</label><input id="edit-tel" style="margin-top:3px"></div>
+        <div style="margin-bottom:8px"><label style="font-size:11px;color:#666">Email</label><input id="edit-email" style="margin-top:3px"></div>
+        <div style="margin-bottom:8px"><label style="font-size:11px;color:#666">Familia SUCOVI</label><input id="edit-familia" style="margin-top:3px"></div>
+        <div style="margin-bottom:12px"><label style="font-size:11px;color:#666">Comentarios</label><input id="edit-comentarios" style="margin-top:3px"></div>
+        <div style="margin-bottom:14px"><label style="font-size:11px;color:#666">Estado</label>
+          <select id="edit-estado" style="margin-top:3px">
+            <option value="pendiente">Pendiente de pago</option>
+            <option value="pagado">Bono pagado</option>
+            <option value="ingresado">Ingreso al evento</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-v" style="flex:1;padding:9px" onclick="window._guardarEdit()">Guardar</button>
+          <button class="btn" style="flex:1;padding:9px" onclick="window._cerrarEdit()">Cancelar</button>
+        </div>
+        <div id="edit-msg" style="margin-top:8px;font-size:12px;text-align:center"></div>
+      </div>
+    </div>
+
     <div id="modal-wa" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
       background:rgba(0,0,0,.45);z-index:200;align-items:center;justify-content:center;padding:16px">
       <div class="card" style="width:100%;max-width:380px;max-height:90vh;overflow-y:auto">
