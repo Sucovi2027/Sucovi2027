@@ -252,8 +252,87 @@ export function renderCaja(app) {
         <button class="btn btn-g" style="width:100%;padding:14px;font-size:16px"
           onclick="window._cobrar()">
           ✓ Cobrar $${fmt(total)} y generar vouchers
-        </button>`}
+        </button>
+        <div id="voucher-actions" style="display:none;margin-top:10px;display:flex;gap:8px;flex-direction:column">
+          <button class="btn btn-b" style="width:100%;padding:10px;font-size:14px"
+            onclick="window._imprimirVouchers()">
+            🖨️ Imprimir vouchers
+          </button>
+          <button class="btn btn-g" style="width:100%;padding:10px;font-size:14px"
+            onclick="window._enviarVouchersWA()">
+            📱 Enviar por WhatsApp
+          </button>
+        </div>`}
     `
+  }
+
+  window._imprimirVouchers = () => {
+    const { inv, items } = window._lastCobrado || {}
+    if (!inv || !items) return
+    const fmt = n => Number(n).toLocaleString('es-AR')
+    const win = window.open('', '_blank')
+    win.document.write(`<!DOCTYPE html><html><head>
+      <meta charset="utf-8">
+      <title>Vouchers - ${inv.nombre} ${inv.apellido}</title>
+      <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family: system-ui, sans-serif; padding: 16px; }
+        .voucher { border: 2px solid #1A3A5C; border-radius: 10px; padding: 16px;
+          margin-bottom: 16px; page-break-inside: avoid; }
+        .header { display: flex; justify-content: space-between; margin-bottom: 10px;
+          border-bottom: 1px solid #D6E4F0; padding-bottom: 8px; }
+        .evento { font-size: 10px; color: #888; letter-spacing: .08em; }
+        .stand { font-size: 16px; font-weight: 600; color: #1A3A5C; }
+        .inv { font-size: 13px; color: #444; }
+        .item { display: flex; justify-content: space-between; font-size: 12px;
+          padding: 4px 0; border-bottom: .5px solid #eee; }
+        .total { display: flex; justify-content: space-between; font-size: 15px;
+          font-weight: 600; margin-top: 8px; color: #1A3A5C; }
+        .badge { background: #3A7D44; color: #fff; padding: 3px 12px;
+          border-radius: 20px; font-size: 11px; display: inline-block; margin-top: 8px; }
+        @media print { body { padding: 0; } }
+      </style>
+    </head><body>
+    ${items.map(stand => `
+      <div class="voucher">
+        <div class="header">
+          <div>
+            <div class="evento">SUCOVI 2027 · VOUCHER DE RETIRO</div>
+            <div class="stand">🍷 ${stand.standNombre}</div>
+            <div class="inv">${inv.nombre} ${inv.apellido} · ${inv.codigo}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="badge">✅ PAGADO</div>
+            <div style="font-size:10px;color:#888;margin-top:4px">Stand #${stand.standId}</div>
+          </div>
+        </div>
+        ${(stand.items||[]).map(i => `
+          <div class="item"><span>${i.desc}</span><strong>$${fmt(i.sub)}</strong></div>
+        `).join('')}
+        <div class="total">
+          <span>Total</span>
+          <span>$${fmt((stand.items||[]).reduce((s,i)=>s+(i.sub||0),0))}</span>
+        </div>
+      </div>`).join('')}
+    <script>window.print(); window.close();<\/script>
+    </body></html>`)
+    win.document.close()
+  }
+
+  window._enviarVouchersWA = () => {
+    const { inv, items } = window._lastCobrado || {}
+    if (!inv || !items) return
+    const fmt = n => Number(n).toLocaleString('es-AR')
+    const lineas = items.map(stand => {
+      const sub = (stand.items||[]).reduce((s,i)=>s+(i.sub||0),0)
+      const detalle = (stand.items||[]).map(i => `  • ${i.desc}: $${fmt(i.sub)}`).join('\n')
+      return `🍷 *${stand.standNombre}* (Stand #${stand.standId})\n${detalle}\n  Total: $${fmt(sub)}`
+    }).join('\n\n')
+    const total = items.reduce((s,si) => s+(si.items||[]).reduce((ss,i)=>ss+(i.sub||0),0), 0)
+    const msg = `Hola ${inv.nombre}! 🍷\n\nAquí están tus vouchers de SUCOVI 2027:\n\n${lineas}\n\n💰 *Total pagado: $${fmt(total)}*\n\nPresentá cada voucher en el stand correspondiente para retirar tus vinos. \n\n_Sáb 20 jun 2026 · Roma 656, Olivos_`
+    const tel = inv.tel?.replace(/\D/g, '')
+    const waUrl = 'https://wa.me/54' + tel + '?text=' + encodeURIComponent(msg)
+    window.open(waUrl, '_blank')
   }
 
   window._volverCobrar = () => { invSeleccionado = null; carritoInv = []; renderCobrar() }
@@ -272,6 +351,10 @@ export function renderCaja(app) {
         ✅ ¡Cobrado! ${items.length} voucher${items.length>1?'s':''} generado${items.length>1?'s':''}.
       </span>`
       if (btn) btn.style.display = 'none'
+      const va = document.getElementById('voucher-actions')
+      if (va) va.style.display = 'flex'
+      // Store cobrado data for print/WA
+      window._lastCobrado = { inv, items }
     } catch(e) {
       msg.innerHTML = `<span style="color:#C0392B">Error: ${e.message}</span>`
       if (btn) { btn.disabled = false; btn.textContent = 'Reintentar' }

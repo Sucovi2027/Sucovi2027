@@ -182,8 +182,8 @@ export function renderStandPanel(app, bodega) {
           <button id="sf-all" class="btn" onclick="window._setSF('todos',this)" style="font-size:11px">
             📋 Todos
           </button>
-          <button class="btn btn-b" onclick="window._abrirScannerStand()" style="font-size:11px;margin-left:auto">
-            📷 Voucher
+          <button class="btn btn-b" onclick="window._abrirScannerUnificado()" style="font-size:11px;margin-left:auto">
+            📷 Escanear QR
           </button>
         </div>
         <div id="sp-pedidos"></div>
@@ -198,6 +198,21 @@ export function renderStandPanel(app, bodega) {
       <div id="tab-content-resumen" style="display:none">
         <div id="sp-resumen"></div>
       </div>
+    </div>
+
+    <!-- Scanner unificado -->
+    <div id="scan-overlay-uni" class="scan-overlay" style="display:none">
+      <p style="color:#fff;font-size:14px;font-weight:500">Escaneá el QR del invitado o voucher</p>
+      <div class="scan-frame">
+        <video id="scan-video-uni" autoplay playsinline muted
+          style="width:280px;height:280px;object-fit:cover;border-radius:12px"></video>
+        <div class="scan-corner tl"></div><div class="scan-corner tr"></div>
+        <div class="scan-corner bl"></div><div class="scan-corner br"></div>
+      </div>
+      <p id="scan-status-uni" style="color:#C9A96E;font-size:13px">Buscando QR...</p>
+      <button class="btn"
+        style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)"
+        onclick="window._cerrarScannerUni()">Cancelar</button>
     </div>
 
     <!-- Scanner QR invitado -->
@@ -457,6 +472,69 @@ export function renderStandPanel(app, bodega) {
     } catch(e) {
       if (statusEl) statusEl.textContent = 'No se pudo acceder a la cámara.'
     }
+  }
+
+  let uniStream = null, uniActive = false
+
+  window._abrirScannerUnificado = async () => {
+    document.getElementById('scan-overlay-uni').style.display = 'flex'
+    const statusEl = document.getElementById('scan-status-uni')
+    try {
+      if (!window.jsQR) {
+        await new Promise((res,rej) => {
+          const s = document.createElement('script')
+          s.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js'
+          s.onload = res; s.onerror = rej
+          document.head.appendChild(s)
+        })
+      }
+      uniStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+      const video = document.getElementById('scan-video-uni')
+      video.srcObject = uniStream
+      uniActive = true
+      if (statusEl) statusEl.textContent = 'Buscando QR...'
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d', { willReadFrequently: true })
+      const tick = () => {
+        if (!uniActive) return
+        if (video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth > 0) {
+          canvas.width = video.videoWidth; canvas.height = video.videoHeight
+          ctx.drawImage(video, 0, 0)
+          const img = ctx.getImageData(0, 0, canvas.width, canvas.height)
+          const code = window.jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' })
+          if (code && code.data) {
+            const raw = code.data
+            window._cerrarScannerUni()
+            // Detect type: invitado or voucher
+            const matchToken = raw.match(/inv=([A-Z0-9]+)/i)
+            const pedido = pedidos.find(p => raw.includes(p.fireId))
+            if (matchToken) {
+              // QR del invitado → abrir menú del stand con su token
+              if (statusEl) statusEl.textContent = 'Invitado detectado, abriendo menú...'
+              window.location.href = '/stand/' + bodega.id + '?inv=' + matchToken[1]
+            } else if (pedido) {
+              // QR de voucher → mostrar modal de entrega
+              mostrarVoucherModal(pedido)
+            } else {
+              if (statusEl) statusEl.textContent = 'QR no reconocido — intentá de nuevo'
+              setTimeout(() => window._abrirScannerUnificado(), 1500)
+            }
+            return
+          }
+        }
+        if (uniActive) requestAnimationFrame(tick)
+      }
+      video.addEventListener('loadeddata', () => requestAnimationFrame(tick))
+    } catch(e) {
+      if (statusEl) statusEl.textContent = 'No se pudo acceder a la cámara.'
+    }
+  }
+
+  window._cerrarScannerUni = () => {
+    uniActive = false
+    if (uniStream) { uniStream.getTracks().forEach(t => t.stop()); uniStream = null }
+    const overlay = document.getElementById('scan-overlay-uni')
+    if (overlay) overlay.style.display = 'none'
   }
 
   window._cerrarScannerInvitado = () => {
