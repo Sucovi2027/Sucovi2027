@@ -70,7 +70,7 @@ export function renderPuerta(app) {
   app.innerHTML = `
     <div class="hdr">
       <div><h1>🚪 Control de puerta</h1><div class="sub">Solo ingresa quien tiene bono pagado</div></div>
-      <a href="/admin" class="btn" style="font-size:11px;padding:5px 9px;color:#fff;border-color:rgba(255,255,255,.3);text-decoration:none">← Panel</a>
+      <a href="/admin" class="btn" style="font-size:11px;padding:5px 9px;color:#fff;border-color:rgba(255,255,255,.3);text-decoration:none;background:rgba(255,255,255,.15)">← Panel</a>
     </div>
     <div class="gold"></div>
     <div style="max-width:400px;margin:0 auto;padding:16px">
