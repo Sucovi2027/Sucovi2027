@@ -1,3 +1,113 @@
+// Shared jsQR scanner — works on iOS Safari, Android, Desktop
+// Call: window._initScanner(videoId, onFound, statusId)
+// onFound receives raw QR string
+window._scannerStop = null
+
+async function _loadJsQR() {
+  if (window.jsQR) return
+  await new Promise((res, rej) => {
+    const s = document.createElement('script')
+    s.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js'
+    s.onload = res; s.onerror = rej
+    document.head.appendChild(s)
+  })
+}
+
+window._initScanner = async function(videoId, onFound, statusId) {
+  const statusEl = statusId ? document.getElementById(statusId) : null
+  if (statusEl) statusEl.textContent = 'Iniciando cámara...'
+  
+  try {
+    await _loadJsQR()
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+    const video = document.getElementById(videoId)
+    if (!video) { stream.getTracks().forEach(t => t.stop()); return }
+    video.srcObject = stream
+
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    let active = true
+
+    window._scannerStop = () => {
+      active = false
+      stream.getTracks().forEach(t => t.stop())
+      window._scannerStop = null
+    }
+
+    if (statusEl) statusEl.textContent = 'Buscando QR...'
+
+    const tick = () => {
+      if (!active) return
+      if (video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth > 0) {
+        canvas.width = video.videoWidth
+        canvas.height = video.videoHeight
+        ctx.drawImage(video, 0, 0)
+        const img = ctx.getImageData(0, 0, canvas.width, canvas.height)
+        const code = window.jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' })
+        if (code && code.data) {
+          window._scannerStop?.()
+          onFound(code.data)
+          return
+        }
+      }
+      requestAnimationFrame(tick)
+    }
+    video.addEventListener('loadeddata', () => requestAnimationFrame(tick))
+
+  } catch(e) {
+    if (statusEl) statusEl.textContent = 'No se pudo acceder a la cámara. Ingresá el código manualmente.'
+  }
+}
+
+
+// jsQR based scanner - works on iOS Safari and all browsers
+async function startQRScanner(videoId, onResult, onError) {
+  // Load jsQR dynamically
+  if (!window.jsQR) {
+    await new Promise((resolve, reject) => {
+      const s = document.createElement('script')
+      s.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js'
+      s.onload = resolve
+      s.onerror = reject
+      document.head.appendChild(s)
+    })
+  }
+  
+  let stream = null
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+    const video = document.getElementById(videoId)
+    if (!video) return null
+    video.srcObject = stream
+    await video.play()
+    
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    let scanning = true
+    
+    const scan = () => {
+      if (!scanning || !video.videoWidth) { if (scanning) requestAnimationFrame(scan); return }
+      canvas.width = video.videoWidth
+      canvas.height = video.videoHeight
+      ctx.drawImage(video, 0, 0)
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+      const code = window.jsQR(imageData.data, imageData.width, imageData.height)
+      if (code) { scanning = false; stopStream(stream); onResult(code.data) }
+      else if (scanning) requestAnimationFrame(scan)
+    }
+    requestAnimationFrame(scan)
+    
+    return () => { scanning = false; stopStream(stream) }
+  } catch(e) {
+    onError(e.message)
+    return null
+  }
+}
+
+function stopStream(stream) {
+  if (stream) stream.getTracks().forEach(t => t.stop())
+}
+
 import { buildHeader } from '../header.js'
 // src/pages/standPanel.js
 import { escucharPedidosPorStand, marcarEntregado } from '../firebase.js'
@@ -31,7 +141,7 @@ export function renderStandPanel(app, bodega) {
     return
   }
 
-  let pedidos = [], scannerStream = null
+  let pedidos = []
 
   app.innerHTML = buildHeader({
     title: '🍷 ' + bodega.nombre,
@@ -127,35 +237,11 @@ export function renderStandPanel(app, bodega) {
   window._abrirScannerStand = async () => {
     document.getElementById('scan-overlay-stand').style.display = 'flex'
     try {
-      scannerStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } })
-      const video = document.getElementById('scan-video-stand')
-      video.srcObject = scannerStream
-      if ('BarcodeDetector' in window) {
-        const detector = new BarcodeDetector({ formats:['qr_code'] })
-        const scan = async () => {
-          try {
-            const codes = await detector.detect(video)
-            if (codes.length > 0) {
-              const raw = codes[0].rawValue
-              // El voucher QR contiene el fireId del pedido
-              const pedido = pedidos.find(p => raw.includes(p.fireId))
-              if (pedido) {
-                mostrarVoucherModal(pedido)
-                window._cerrarScannerStand()
-                return
-              }
-            }
-          } catch(e) {}
-          if (document.getElementById('scan-overlay-stand').style.display !== 'none')
-            requestAnimationFrame(scan)
-        }
-        requestAnimationFrame(scan)
-      } else {
-        document.getElementById('scan-status-stand').textContent = 'Escaneo no disponible en este navegador.'
-      }
-    } catch(e) {
-      document.getElementById('scan-status-stand').textContent = 'No se pudo acceder a la cámara.'
-    }
+      await window._initScanner('scan-video-stand', (raw) => {
+        window._cerrarScannerStand()
+        const pedido = pedidos.find(p => raw.includes(p.fireId))
+        if (pedido) mostrarVoucherModal(pedido)
+      }, 'scan-status-stand')
   }
 
   function mostrarVoucherModal(p) {

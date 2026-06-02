@@ -1,3 +1,95 @@
+  await new Promise((res, rej) => {
+    const s = document.createElement('script')
+    s.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js'
+    s.onload = res; s.onerror = rej
+    document.head.appendChild(s)
+  })
+}
+
+  if (statusEl) statusEl.textContent = 'Iniciando cámara...'
+  
+  try {
+    await _loadJsQR()
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+    const video = document.getElementById(videoId)
+    if (!video) { stream.getTracks().forEach(t => t.stop()); return }
+    video.srcObject = stream
+
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    let active = true
+
+      stream.getTracks().forEach(t => t.stop())
+
+    if (statusEl) statusEl.textContent = 'Buscando QR...'
+
+    const tick = () => {
+      if (!active) return
+      if (video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth > 0) {
+        canvas.width = video.videoWidth
+        canvas.height = video.videoHeight
+        ctx.drawImage(video, 0, 0)
+        const img = ctx.getImageData(0, 0, canvas.width, canvas.height)
+        const code = window.jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' })
+        if (code && code.data) {
+          return
+        }
+      }
+      requestAnimationFrame(tick)
+    }
+    video.addEventListener('loadeddata', () => requestAnimationFrame(tick))
+
+  } catch(e) {
+    if (statusEl) statusEl.textContent = 'No se pudo acceder a la cámara. Ingresá el código manualmente.'
+  }
+}
+
+
+  if (!window.jsQR) {
+    await new Promise((resolve, reject) => {
+      const s = document.createElement('script')
+      s.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js'
+      s.onload = resolve
+      s.onerror = reject
+      document.head.appendChild(s)
+    })
+  }
+  
+  let stream = null
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+    const video = document.getElementById(videoId)
+    if (!video) return null
+    video.srcObject = stream
+    await video.play()
+    
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    let scanning = true
+    
+    const scan = () => {
+      if (!scanning || !video.videoWidth) { if (scanning) requestAnimationFrame(scan); return }
+      canvas.width = video.videoWidth
+      canvas.height = video.videoHeight
+      ctx.drawImage(video, 0, 0)
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+      const code = window.jsQR(imageData.data, imageData.width, imageData.height)
+      if (code) { scanning = false; stopStream(stream); onResult(code.data) }
+      else if (scanning) requestAnimationFrame(scan)
+    }
+    requestAnimationFrame(scan)
+    
+    return () => { scanning = false; stopStream(stream) }
+  } catch(e) {
+    onError(e.message)
+    return null
+  }
+}
+
+function stopStream(stream) {
+  if (stream) stream.getTracks().forEach(t => t.stop())
+}
+
 import { buildHeader } from '../header.js'
 // src/pages/caja.js
 import { escucharInvitados, leerCarrito, crearPedidosDesdeCarrito,
@@ -11,7 +103,6 @@ export function renderCaja(app) {
 
   let invitados = [], pedidosExistentes = [], vista = 'cobrar'
   let invSeleccionado = null, carritoInv = []
-  let scannerStream = null
 
   app.innerHTML = `
     ${buildHeader({ title:'💰 Caja central', sub:'Sucovi 2027 · Roma 656, Olivos', backHref:'/admin' })}
@@ -258,55 +349,23 @@ export function renderCaja(app) {
     const overlay = document.getElementById('scan-overlay')
     overlay.style.display = 'flex'
     try {
-      scannerStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' }
-      })
-      const video = document.getElementById('scan-video')
-      video.srcObject = scannerStream
-
-      // Use BarcodeDetector if available, else fallback message
-      if ('BarcodeDetector' in window) {
-        const detector = new BarcodeDetector({ formats: ['qr_code'] })
-        const scan = async () => {
-          try {
-            const codes = await detector.detect(video)
-            if (codes.length > 0) {
-              const raw = codes[0].rawValue
-              // Extraer código INV- o token del URL
-              const match = raw.match(/INV-\d+/) || raw.match(/inv=([A-Z0-9]+)/)
-              if (match) {
-                const codigo = match[0].startsWith('INV') ? match[0] : null
-                const token  = !codigo ? match[1] : null
-                window._cerrarScanner()
-                if (codigo) {
-                  document.getElementById('buscar-caja').value = codigo
-                  window._buscarInv(true)
-                } else if (token) {
-                  const { buscarInvitadoPorToken } = await import('../firebase.js')
-                  const inv = await buscarInvitadoPorToken(token)
-                  if (inv) window._seleccionarInv(inv.fireId)
-                }
-                return
-              }
-            }
-          } catch(e) {}
-          if (document.getElementById('scan-overlay').style.display !== 'none') {
-            requestAnimationFrame(scan)
-          }
-        }
-        requestAnimationFrame(scan)
-      } else {
-        document.getElementById('scan-status').textContent =
-          'Tu navegador no soporta escaneo automático. Ingresá el código manualmente.'
+    await window._initScanner('scan-video', async (raw) => {
+      window._cerrarScanner()
+      const matchCod   = raw.match(/INV-\d+/)
+      const matchToken = raw.match(/inv=([A-Z0-9]+)/i)
+      if (matchCod) {
+        document.getElementById('buscar-caja').value = matchCod[0]
+        window._buscarInv(true)
+      } else if (matchToken) {
+        const { buscarInvitadoPorToken } = await import('../firebase.js')
+        const inv = await buscarInvitadoPorToken(matchToken[1])
+        if (inv) window._seleccionarInv(inv.fireId)
       }
-    } catch(e) {
-      document.getElementById('scan-status').textContent =
-        'No se pudo acceder a la cámara. Ingresá el código manualmente.'
-    }
+    }, 'scan-status')
   }
 
   window._cerrarScanner = () => {
-    if (scannerStream) { scannerStream.getTracks().forEach(t => t.stop()); scannerStream = null }
+    window._scannerStop?.()
     document.getElementById('scan-overlay').style.display = 'none'
   }
 
