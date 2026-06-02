@@ -8,22 +8,22 @@ import { LOGO } from './logo.js'
 export function buildHeader({ title, sub = '', backHref = '', backLabel = '← Panel', actions = [] } = {}) {
   return `
     <div class="hdr">
-      <div style="display:flex;align-items:center;gap:10px;min-width:0">
+      <div style="display:flex;align-items:center;gap:8px;min-width:0;flex:1">
         <img src="${LOGO}" alt="Sucovi 2027"
-          style="width:38px;height:38px;border-radius:50%;
+          style="width:34px;height:34px;border-radius:50%;
                  background:#fff;padding:2px;flex-shrink:0;
                  box-shadow:0 2px 6px rgba(0,0,0,.2)">
-        <div style="min-width:0">
-          <h1 style="font-size:14px;font-weight:700;line-height:1.2;
+        <div style="min-width:0;overflow:hidden">
+          <h1 style="font-size:13px;font-weight:700;line-height:1.2;
                      white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
             ${title}
           </h1>
-          ${sub ? `<div class="sub">${sub}</div>` : ''}
+          ${sub ? `<div class="sub" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10px">${sub}</div>` : ''}
         </div>
       </div>
-      <div style="display:flex;gap:5px;flex-shrink:0;flex-wrap:wrap;align-items:center">
+      <div style="display:flex;gap:4px;flex-shrink:0;flex-wrap:nowrap;align-items:center">
         ${actions.join('')}
-        ${backHref ? `<a href="${backHref}" class="btn-back btn">${backLabel}</a>` : ''}
+        ${backHref ? `<a href="${backHref}" class="btn-back btn" style="font-size:11px;padding:5px 8px;white-space:nowrap">${backLabel}</a>` : ''}
       </div>
     </div>
     <div class="gold"></div>`

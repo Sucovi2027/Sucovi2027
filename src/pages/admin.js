@@ -24,15 +24,15 @@ export function renderAdmin(app) {
   let invitados=[], pedidos=[], tabActiva='inv', modalInvFireId=null
 
   app.innerHTML = buildHeader({
-    title: 'Sucovi 2027 — Panel',
-    sub: 'Roma 656, Olivos · 20 jun 2026 · 19:30 hs',
-    actions: [
-      '<a href="/puerta"    class="btn btn-a" style="font-size:11px;padding:5px 9px;text-decoration:none">🚪 Puerta</a>',
-      '<a href="/caja"      class="btn btn-b" style="font-size:11px;padding:5px 9px;text-decoration:none">💰 Caja</a>',
-      '<a href="/logistica" class="btn btn-p" style="font-size:11px;padding:5px 9px;text-decoration:none">🚚 Logística</a>',
-      '<a href="/registro"  class="btn" style="font-size:11px;padding:5px 9px;text-decoration:none">📝 Registro</a>',
-    ]
+    title: 'Sucovi 2027',
+    sub: '20 jun 2026 · 19:30 hs · Roma 656, Olivos',
   }) + `
+    <div style="display:flex;gap:5px;padding:8px 12px;background:#1A3A5C;flex-wrap:wrap">
+      <a href="/puerta"    class="btn btn-a" style="font-size:11px;padding:5px 9px;text-decoration:none">🚪 Puerta</a>
+      <a href="/caja"      class="btn btn-b" style="font-size:11px;padding:5px 9px;text-decoration:none">💰 Caja</a>
+      <a href="/logistica" class="btn btn-p" style="font-size:11px;padding:5px 9px;text-decoration:none">🚚 Logística</a>
+      <a href="/registro"  class="btn" style="font-size:11px;padding:5px 9px;text-decoration:none;background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)">📝 Registro</a>
+    </div>` + `
     <div class="nav">
       <button class="on" onclick="window._aTab('inv',this)">👥 Invitados</button>
       <button onclick="window._aTab('reg',this)">➕ Registrar</button>
