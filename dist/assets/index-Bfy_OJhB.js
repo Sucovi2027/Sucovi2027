@@ -2707,11 +2707,11 @@ Consultas: José Pannunzio +54 9 11 5400-1313`;document.getElementById("mw-msg")
             </div>
           </div>`).join("")):(document.getElementById("stand-resumen").style.display="none",h===null&&(document.getElementById("retiro-box").style.display="none"))});function a(){const u=document.getElementById("menu-lista");if(u){if(!i.length){u.innerHTML='<div class="empty">La carta estará disponible pronto.</div>';return}u.innerHTML=i.map((h,f)=>`
       <div class="vino-card">
-        <div style="font-size:14px;font-weight:500">${h.nombre}</div>
+        <div style="font-size:17px;font-weight:600;color:#1A3A5C">${h.nombre}</div>
         <div style="font-size:11px;color:#888;margin-top:2px">
-          ${h.varietal||""}${h.cosecha?" · "+h.cosecha:""}
+          <span style="font-size:14px;color:#555">${h.varietal||""}${h.cosecha?" · "+h.cosecha:""}</span>
         </div>
-        ${h.descripcion?`<div style="font-size:12px;color:#666;margin-top:3px">${h.descripcion}</div>`:""}
+        ${h.descripcion?`<div style="font-size:13px;color:#666;margin-top:3px">${h.descripcion}</div>`:""}
         ${(h.unidades||[]).map((g,y)=>`
           <div class="qty-row">
             <span class="qty-label">
@@ -2842,8 +2842,8 @@ Consultas: José Pannunzio +54 9 11 5400-1313`;document.getElementById("mw-msg")
         </div>
       </div>`}).join("")}function a(){const u=document.getElementById("sp-carta");u&&(u.innerHTML='<div class="empty" style="padding:16px">Cargando...</div>',kn(()=>Promise.resolve().then(()=>Li),void 0).then,kn(async()=>{const{escucharVinos:h}=await Promise.resolve().then(()=>Li);return{escucharVinos:h}},void 0).then(({escucharVinos:h})=>{h(t.id,f=>{if(!f.length){u.innerHTML='<div class="empty">Sin vinos cargados todavía</div>';return}const g=y=>Number(y).toLocaleString("es-AR");u.innerHTML=f.map(y=>`
           <div class="card" style="margin-bottom:8px">
-            <div style="font-size:14px;font-weight:500;color:#1A3A5C">${y.nombre}</div>
-            <div style="font-size:11px;color:#888;margin-top:2px">
+            <div style="font-size:17px;font-weight:600;color:#1A3A5C">${y.nombre}</div>
+            <div style="font-size:14px;color:#666;margin-top:2px">
               ${y.varietal||""}${y.cosecha?" · "+y.cosecha:""}
             </div>
             ${y.descripcion?`<div style="font-size:12px;color:#666;margin-top:2px">${y.descripcion}</div>`:""}

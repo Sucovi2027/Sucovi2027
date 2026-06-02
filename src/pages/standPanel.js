@@ -315,8 +315,8 @@ export function renderStandPanel(app, bodega) {
         const fmt = n => Number(n).toLocaleString('es-AR')
         el.innerHTML = vinos.map(v => `
           <div class="card" style="margin-bottom:8px">
-            <div style="font-size:14px;font-weight:500;color:#1A3A5C">${v.nombre}</div>
-            <div style="font-size:11px;color:#888;margin-top:2px">
+            <div style="font-size:17px;font-weight:600;color:#1A3A5C">${v.nombre}</div>
+            <div style="font-size:14px;color:#666;margin-top:2px">
               ${v.varietal||''}${v.cosecha?' · '+v.cosecha:''}
             </div>
             ${v.descripcion?`<div style="font-size:12px;color:#666;margin-top:2px">${v.descripcion}</div>`:''}

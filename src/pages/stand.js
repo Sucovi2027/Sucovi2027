@@ -168,11 +168,11 @@ export function renderStand(app, bodega, invitado) {
     }
     el.innerHTML = vinos.map((v, vi) => `
       <div class="vino-card">
-        <div style="font-size:14px;font-weight:500">${v.nombre}</div>
+        <div style="font-size:17px;font-weight:600;color:#1A3A5C">${v.nombre}</div>
         <div style="font-size:11px;color:#888;margin-top:2px">
-          ${v.varietal || ''}${v.cosecha ? ' · ' + v.cosecha : ''}
+          <span style="font-size:14px;color:#555">${v.varietal || ''}${v.cosecha ? ' · ' + v.cosecha : ''}</span>
         </div>
-        ${v.descripcion ? `<div style="font-size:12px;color:#666;margin-top:3px">${v.descripcion}</div>` : ''}
+        ${v.descripcion ? `<div style="font-size:13px;color:#666;margin-top:3px">${v.descripcion}</div>` : ''}
         ${(v.unidades || []).map((u, ui) => `
           <div class="qty-row">
             <span class="qty-label">
