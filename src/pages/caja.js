@@ -50,7 +50,10 @@ export function renderCaja(app) {
       </button>
     </div>`
 
-  escucharInvitados(data => { invitados = data })
+  escucharInvitados(data => {
+    invitados = data
+    if (vista === 'cobrar' && !invSeleccionado) cargarCarritosActivos()
+  })
   escucharPedidos(data => {
     pedidosExistentes = data
     if (vista !== 'cobrar') renderVista()
@@ -105,7 +108,7 @@ export function renderCaja(app) {
       <div id="resultados-busqueda">
         <p style="font-size:12px;color:#888;margin-bottom:8px">Cargando carritos activos...</p>
       </div>`
-    cargarCarritosActivos()
+    if (invitados.length) cargarCarritosActivos()
   }
 
   function renderListaCobrar() {
