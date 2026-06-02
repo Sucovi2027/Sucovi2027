@@ -5,6 +5,45 @@ import { BODEGAS, escucharInvitados, crearInvitado, actualizarInvitado,
          escucharVinos, limpiarDatosPrueba } from '../firebase.js'
 import { injectStyles } from '../styles.js'
 
+// ── QR REAL (qrcode-generator) ────────────────────────────────────────────
+async function loadQRLib() {
+  if (window.qrcode) return
+  await new Promise((res, rej) => {
+    const s = document.createElement('script')
+    s.src = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js'
+    s.onload = res; s.onerror = rej
+    document.head.appendChild(s)
+  })
+}
+
+async function drawQR(canvasId, data, size) {
+  await loadQRLib()
+  const c = document.getElementById(canvasId)
+  if (!c) return
+  try {
+    const qr = qrcode(0, 'M')
+    qr.addData(String(data))
+    qr.make()
+    const modules = qr.getModuleCount()
+    const cellSize = size / modules
+    c.width = size; c.height = size
+    const ctx = c.getContext('2d')
+    ctx.fillStyle = '#fff'
+    ctx.fillRect(0, 0, size, size)
+    ctx.fillStyle = '#000'
+    for (let row = 0; row < modules; row++) {
+      for (let col = 0; col < modules; col++) {
+        if (qr.isDark(row, col)) {
+          ctx.fillRect(col * cellSize, row * cellSize, cellSize, cellSize)
+        }
+      }
+    }
+  } catch(e) {
+    console.error('QR error:', e)
+  }
+}
+
+
 const fmt = n => Number(n).toLocaleString('es-AR')
 const genToken  = () => Math.random().toString(36).slice(2,10).toUpperCase()
 const genCodigo = n  => 'INV-' + String(n).padStart(4,'0')
@@ -394,22 +433,4 @@ export function renderAdmin(app) {
   window._cModal=()=>{document.getElementById('modal-wa').style.display='none';modalInvFireId=null}
 
   renderTabInv()
-}
-
-function drawQR(id,data,size){
-  const c=document.getElementById(id);if(!c)return
-  const ctx=c.getContext('2d');c.width=size;c.height=size
-  const cells=21,cell=size/cells
-  ctx.fillStyle='#fff';ctx.fillRect(0,0,size,size);ctx.fillStyle='#1a1a1a'
-  const seed=String(data).split('').reduce((a,ch)=>a+ch.charCodeAt(0),0)
-  const bit=(x,y)=>((x*7+y*13+seed*(x+1))%17)<8
-  for(let y=0;y<cells;y++)for(let x=0;x<cells;x++){
-    const iF=(fx,fy)=>x>=fx&&x<=fx+6&&y>=fy&&y<=fy+6
-    const iFI=(fx,fy)=>x>=fx+2&&x<=fx+4&&y>=fy+2&&y<=fy+4
-    if(iF(0,0)||iF(14,0)||iF(0,14)){
-      const d=(iF(0,0)&&(x===0||x===6||y===0||y===6||iFI(0,0)))||(iF(14,0)&&(x===14||x===20||y===0||y===6||(x>=16&&x<=18&&y>=2&&y<=4)))||(iF(0,14)&&(x===0||x===6||y===14||y===20||(x>=2&&x<=4&&y>=16&&y<=18)))
-      if(d)ctx.fillRect(x*cell,y*cell,cell,cell);continue
-    }
-    if(bit(x,y))ctx.fillRect(x*cell+.5,y*cell+.5,cell-1,cell-1)
-  }
 }
