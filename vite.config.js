@@ -1,5 +1,5 @@
 import { defineConfig } from 'vite'
 export default defineConfig({
-  base: '/Sucovi2027/',
+  base: '/',
   build: { outDir: 'dist' }
 })
