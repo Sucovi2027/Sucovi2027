@@ -3,7 +3,7 @@ import { initializeApp } from 'firebase/app'
 import {
   getFirestore, collection, addDoc, onSnapshot, doc,
   updateDoc, query, orderBy, serverTimestamp, getDocs,
-  deleteDoc, setDoc, getDoc, writeBatch
+  deleteDoc, setDoc, getDoc, writeBatch, runTransaction
 } from 'firebase/firestore'
 
 const firebaseConfig = {
@@ -114,25 +114,32 @@ export async function vaciarCarrito(invFireId) {
 
 // ── PEDIDOS ───────────────────────────────────────────────────────────────────
 export async function crearPedidosDesdeCarrito(invitado, carritoItems) {
-  // Crea un pedido por stand al momento del cobro en caja
+  // Obtener próximo número de voucher
+  const contRef = doc(db, 'config', 'contadores')
+  const contSnap = await getDoc(contRef)
+  let nextVoucher = (contSnap.exists() ? (contSnap.data().voucher || 0) : 0) + 1
+
   const batch = writeBatch(db)
   const refs  = []
-  carritoItems.forEach(item => {
+  carritoItems.forEach((item, idx) => {
     const ref = doc(collection(db, 'pedidos'))
     refs.push(ref)
     batch.set(ref, {
-      invFireId:   invitado.fireId,
-      invNombre:   invitado.nombre + ' ' + invitado.apellido,
-      invCodigo:   invitado.codigo,
-      standId:     item.standId,
-      standNombre: item.standNombre,
-      items:       item.items || [],
-      total:       (item.items || []).reduce((s, i) => s + (i.sub || 0), 0),
-      retiro:      item.retiro || 'stand',
-      estado:      'pagado',
-      creadoEn:    serverTimestamp()
+      invFireId:    invitado.fireId,
+      invNombre:    invitado.nombre + ' ' + invitado.apellido,
+      invCodigo:    invitado.codigo,
+      standId:      item.standId,
+      standNombre:  item.standNombre,
+      items:        item.items || [],
+      total:        (item.items || []).reduce((s, i) => s + (i.sub || 0), 0),
+      retiro:       item.retiro || 'stand',
+      estado:       'pagado',
+      voucherNum:   nextVoucher + idx,
+      creadoEn:     serverTimestamp()
     })
   })
+  // Update counter
+  batch.set(contRef, { voucher: nextVoucher + carritoItems.length - 1 }, { merge: true })
   await batch.commit()
   return refs.map(r => r.id)
 }
@@ -162,6 +169,38 @@ export function escucharPedidosPorInvitado(invFireId, callback) {
     )
   )
 }
+export async function cancelarPedido(fireId, motivo = '') {
+  const ref = doc(db, 'pedidos', fireId)
+  await updateDoc(ref, {
+    estado: 'cancelado',
+    canceladoAt: new Date().toISOString(),
+    canceladoMotivo: motivo || 'Cancelado desde caja'
+  })
+}
+
+export async function reembolsarPedido(fireId) {
+  const ref = doc(db, 'pedidos', fireId)
+  await updateDoc(ref, {
+    estado: 'reembolsado',
+    reembolsadoAt: new Date().toISOString()
+  })
+}
+
+export async function marcarListoLogistica(fireId) {
+  const ref = doc(db, 'pedidos', fireId)
+  await updateDoc(ref, { estado: 'listo', listoAt: new Date().toISOString() })
+}
+
+export async function retirarDeStand(fireId) {
+  const ref = doc(db, 'pedidos', fireId)
+  await updateDoc(ref, { estado: 'retirado', retiradoAt: new Date().toISOString() })
+}
+
+export async function entregarDomicilio(fireId) {
+  const ref = doc(db, 'pedidos', fireId)
+  await updateDoc(ref, { estado: 'entregado', entregadoAt: new Date().toISOString() })
+}
+
 export async function marcarEntregado(fireId) {
   await updateDoc(doc(db, 'pedidos', fireId), { estado: 'entregado' })
 }
@@ -180,7 +219,8 @@ export function escucharVinos(bodegaId, callback) {
   )
 }
 export async function guardarVino(bodegaId, vino) {
-  return await addDoc(collection(db, 'bodegas', String(bodegaId), 'vinos'), vino)
+  const ref = await addDoc(collection(db, 'bodegas', String(bodegaId), 'vinos'), vino)
+  return ref.id
 }
 export async function actualizarVino(bodegaId, vinoFireId, data) {
   await updateDoc(doc(db, 'bodegas', String(bodegaId), 'vinos', vinoFireId), data)
@@ -201,4 +241,101 @@ export async function limpiarDatosPrueba() {
   }
   // Carritos: leer todos los invitados ya borrados no aplica,
   // los carritos se limpian solos cuando no hay invitados asociados
+}
+
+// ── STOCK ────────────────────────────────────────────────────────────────────
+export async function actualizarStock(standId, vinoId, cantidad, vinoNombre) {
+  const ref = doc(db, 'stock', standId + '_' + vinoId)
+  const snap = await getDoc(ref)
+  const actual = snap.exists() ? snap.data() : {}
+  const nombreFinal = (vinoNombre && vinoNombre !== vinoId) ? vinoNombre : (actual.vinoNombre && actual.vinoNombre !== vinoId ? actual.vinoNombre : vinoNombre||vinoId)
+  await setDoc(ref, {
+    standId: Number(standId), vinoId, vinoNombre: nombreFinal,
+    total: (actual.total||0) + cantidad,
+    degustacion: actual.degustacion||0,
+    reservado: actual.reservado||0,
+    pagado: actual.pagado||0,
+    entregado: actual.entregado||0
+  }, { merge: true })
+}
+
+export async function registrarDegustacion(standId, vinoId, cantidad) {
+  const ref = doc(db, 'stock', standId + '_' + vinoId)
+  const snap = await getDoc(ref)
+  const actual = snap.exists() ? snap.data() : {}
+  await setDoc(ref, { degustacion: (actual.degustacion||0) + cantidad }, { merge: true })
+}
+
+export async function intentarReservarStock(standId, vinoId, qty) {
+  const ref = doc(db, 'stock', String(standId) + '_' + vinoId)
+  try {
+    const result = await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(ref)
+      if (!snap.exists()) return true // sin config de stock = ilimitado
+      const s = snap.data()
+      const disponible = (s.total||0) - (s.degustacion||0) - (s.reservado||0) - (s.pagado||0) - (s.entregado||0)
+      if (qty > disponible) return false
+      transaction.update(ref, { reservado: (s.reservado||0) + qty })
+      return true
+    })
+    return result
+  } catch(e) {
+    console.error('intentarReservarStock:', e)
+    return true
+  }
+}
+
+export async function liberarReservaStock(standId, vinoId, qty) {
+  const ref = doc(db, 'stock', String(standId) + '_' + vinoId)
+  const snap = await getDoc(ref)
+  if (!snap.exists()) return
+  const actual = snap.data()
+  await setDoc(ref, { reservado: Math.max(0, (actual.reservado||0) - qty) }, { merge: true })
+}
+
+export async function cobrarStock(standId, vinoId, qty) {
+  const ref = doc(db, 'stock', String(standId) + '_' + vinoId)
+  const snap = await getDoc(ref)
+  if (!snap.exists()) return
+  const actual = snap.data()
+  await setDoc(ref, {
+    reservado: Math.max(0, (actual.reservado||0) - qty),
+    pagado: (actual.pagado||0) + qty
+  }, { merge: true })
+}
+
+export function escucharStock(callback) {
+  return onSnapshot(collection(db, 'stock'), snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  )
+}
+
+export async function getStockDoc(standId, vinoId) {
+  const ref = doc(db, 'stock', String(standId) + '_' + vinoId)
+  const snap = await getDoc(ref)
+  return snap.exists() ? snap.data() : null
+}
+
+export async function leerTodosLosCarritos(invitadoIds) {
+  const result = []
+  if (!invitadoIds || !invitadoIds.length) return result
+  for (const invFireId of invitadoIds) {
+    try {
+      const itemsSnap = await getDocs(collection(db, 'carritos', invFireId, 'items'))
+      itemsSnap.docs.forEach(d => {
+        const data = d.data()
+        const standId = data.standId !== undefined ? Number(data.standId) : null
+        if (standId === null) return
+        ;(data.items||[]).forEach(item => {
+          result.push({ invFireId, standId, vinoId: item.vinoId||'', vinoNombre: item.vinoNombre||'', qty: item.qty||1 })
+        })
+      })
+    } catch(e) {}
+  }
+  return result
+}
+
+export async function guardarDisponibleStock(standId, vinoId, disponible) {
+  const ref = doc(db, 'stock', standId + '_' + vinoId)
+  await setDoc(ref, { disponible: Math.max(0, disponible) }, { merge: true })
 }

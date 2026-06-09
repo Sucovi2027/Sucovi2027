@@ -3,7 +3,7 @@ import { LOGO } from '../logo.js'
 import { buildHeader } from '../header.js'
 import { BODEGAS, escucharInvitados, crearInvitado, actualizarInvitado,
          escucharPedidos, guardarVino, eliminarVino, actualizarVino,
-         escucharVinos, limpiarDatosPrueba } from '../firebase.js'
+         escucharVinos, limpiarDatosPrueba, escucharStock, actualizarStock, registrarDegustacion, leerTodosLosCarritos } from '../firebase.js'
 import { injectStyles } from '../styles.js'
 
 // ── QR REAL (qrcode-generator) ────────────────────────────────────────────
@@ -47,7 +47,7 @@ async function drawQR(canvasId, data, size) {
 
 const fmt = n => Number(n).toLocaleString('es-AR')
 const genToken  = () => Math.random().toString(36).slice(2,10).toUpperCase()
-const genCodigo = n  => 'INV-' + String(n).padStart(4,'0')
+const genCodigo = n => 'INV-' + String(n).padStart(4,'0')
 
 function eBdg(e) {
   return { pendiente:'<span class="badge b-pend">Pendiente</span>',
@@ -60,8 +60,37 @@ const LE={pendiente:'Pendiente',pagado:'Pagado',listo:'Listo',entregado:'Entrega
 const BE={pendiente:'b-pend',pagado:'b-pago',listo:'b-list',entregado:'b-entr'}
 
 export function renderAdmin(app) {
+  const savedPin = sessionStorage.getItem('admin-pin')
+  const correctPin = localStorage.getItem('sucovi-admin-pin') || '2027'
+  if (savedPin !== correctPin) {
+    app.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#F0F4F8">' +
+      '<div style="background:#fff;border-radius:12px;padding:32px;text-align:center;max-width:320px;width:100%;box-shadow:0 4px 20px rgba(0,0,0,.1)">' +
+      '<div style="font-size:40px;margin-bottom:12px">🔒</div>' +
+      '<h2 style="font-size:18px;font-weight:600;color:#1A3A5C;margin-bottom:4px">Panel Admin</h2>' +
+      '<p style="font-size:13px;color:#888;margin-bottom:20px">SUCOVI 2027</p>' +
+      '<input id="pin-input" type="password" maxlength="4" placeholder="PIN de 4 digitos"' +
+      ' style="width:100%;text-align:center;font-size:24px;letter-spacing:.3em;padding:12px;border:2px solid #D6E4F0;border-radius:8px;margin-bottom:12px"' +
+      ' onkeydown="if(event.keyCode===13) window._checkPin()">' +
+      '<button class="btn btn-v" style="width:100%;padding:12px;font-size:14px" onclick="window._checkPin()">Ingresar</button>' +
+      '<div id="pin-err" style="margin-top:8px;font-size:12px;color:#C0392B"></div>' +
+      '</div></div>'
+    window._checkPin = () => {
+      const pin = document.getElementById('pin-input').value
+      const correct = localStorage.getItem('sucovi-admin-pin') || '2027'
+      if (pin === correct) {
+        sessionStorage.setItem('admin-pin', pin)
+        renderAdmin(app)
+      } else {
+        document.getElementById('pin-err').textContent = 'PIN incorrecto'
+        document.getElementById('pin-input').value = ''
+      }
+    }
+    setTimeout(() => document.getElementById('pin-input')?.focus(), 100)
+    return
+  }
   injectStyles()
-  let invitados=[], pedidos=[], tabActiva='inv', modalInvFireId=null
+  let invitados=[], pedidos=[], pedidosData=[], stockData=[], tabActiva='inv', modalInvFireId=null
+  escucharStock(data => { stockData = data; if (tabActiva==='stock') renderTabStock().catch(()=>{}) })
 
   app.innerHTML = buildHeader({
     title: 'Sucovi 2027',
@@ -70,16 +99,17 @@ export function renderAdmin(app) {
     <div style="display:flex;gap:5px;padding:8px 12px;background:#1A3A5C;flex-wrap:wrap">
       <a href="/puerta"    class="btn btn-a" style="font-size:11px;padding:5px 9px;text-decoration:none">🚪 Puerta</a>
       <a href="/caja"      class="btn btn-b" style="font-size:11px;padding:5px 9px;text-decoration:none">💰 Caja</a>
-      <a href="/logistica" class="btn btn-p" style="font-size:11px;padding:5px 9px;text-decoration:none">🚚 Logística</a>
+      
       <a href="/registro"  class="btn" style="font-size:11px;padding:5px 9px;text-decoration:none;background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)">📝 Registro</a>
     </div>` + `
     <div class="nav">
-      <button class="on" onclick="window._aTab('inv',this)">👥 Invitados</button>
+      <button class="on" onclick="window._aTab('res',this)">📊 Resumen</button>
+      <button onclick="window._aTab('inv',this)">👥 Invitados</button>
       <button onclick="window._aTab('reg',this)">➕ Registrar</button>
-      <button onclick="window._aTab('excel',this)">📊 Importar Excel</button>
       <button onclick="window._aTab('ped',this)">🛒 Pedidos</button>
       <button onclick="window._aTab('stands',this)">🍷 Stands / QR</button>
-      <button onclick="window._aTab('res',this)">📊 Resumen</button>
+      <button onclick="window._aTab('excel',this)">📊 Importar</button>
+      <button onclick="window._aTab('stock',this)">📦 Stock</button>
       <button onclick="window._aTab('config',this)">⚙️ Config</button>
     </div>
     <div id="tab-content" class="wrap"></div>
@@ -102,7 +132,7 @@ export function renderAdmin(app) {
           <select id="edit-estado" style="margin-top:3px">
             <option value="pendiente">Pendiente de pago</option>
             <option value="pagado">Bono pagado</option>
-            <option value="ingresado">Ingreso al evento</option>
+            <option value="ingresado">Ingresó al evento</option>
           </select>
         </div>
         <div style="display:flex;gap:8px">
@@ -112,7 +142,6 @@ export function renderAdmin(app) {
         <div id="edit-msg" style="margin-top:8px;font-size:12px;text-align:center"></div>
       </div>
     </div>
-
     <div id="modal-wa" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
       background:rgba(0,0,0,.45);z-index:200;align-items:center;justify-content:center;padding:16px">
       <div class="card" style="width:100%;max-width:380px;max-height:90vh;overflow-y:auto">
@@ -132,6 +161,7 @@ export function renderAdmin(app) {
           max-height:160px;overflow-y:auto"></div>
         <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
           <button class="btn btn-g" style="flex:1;font-size:12px" onclick="window._copWA()">📋 Copiar</button>
+          <button class="btn btn-v" style="flex:1;font-size:12px" onclick="window._envWA()">📱 WhatsApp</button>
           <button class="btn btn-a" id="mw-btn-p" style="flex:1;font-size:12px" onclick="window._pagarM()"></button>
         </div>
         <button class="btn" style="width:100%;margin-top:6px;font-size:12px" onclick="window._cModal()">Cerrar</button>
@@ -145,8 +175,10 @@ export function renderAdmin(app) {
   })
   escucharPedidos(data => {
     pedidos = data
+    pedidosData = data
     if (tabActiva==='ped') renderTabPed()
     if (tabActiva==='res') renderTabRes()
+    if (tabActiva==='cancelados') renderTabCancelados()
   })
 
   window._aTab = (tab, btn) => {
@@ -154,7 +186,7 @@ export function renderAdmin(app) {
     document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('on'))
     btn.classList.add('on')
     const fns={inv:renderTabInv,reg:renderTabReg,excel:renderTabExcel,ped:renderTabPed,
-               stands:renderTabStands,res:renderTabRes,config:renderTabConfig}
+               stands:renderTabStands,res:renderTabRes,config:renderTabConfig,stock:renderTabStock}
     fns[tab]?.()
   }
 
@@ -408,6 +440,136 @@ export function renderAdmin(app) {
   }
 
   // ── TAB: Config ──────────────────────────────────────────────────────
+  function renderTabCancelados() {
+    const el = document.getElementById('tab-body')
+    const cancelados = pedidosData.filter(p => p.estado === 'cancelado')
+    if (!cancelados.length) {
+      el.innerHTML = '<div class="empty" style="padding:40px">Sin pedidos cancelados 👍</div>'
+      return
+    }
+    el.innerHTML = `
+      <div style="background:#FEE2E2;border:1px solid #FCA5A5;border-radius:8px;
+        padding:10px 14px;margin-bottom:14px;font-size:12px;color:#991B1B">
+        ⚠️ Estos pedidos fueron cancelados después de cobrar. Los QR asociados ya no son válidos
+        pero pueden haber sido impresos o enviados por WhatsApp.
+      </div>
+      ${cancelados.map(p => {
+        const fecha = p.canceladoAt ? new Date(p.canceladoAt).toLocaleString('es-AR') : 'Sin fecha'
+        return `
+        <div class="card" style="margin-bottom:8px;border-left:4px solid #C0392B;opacity:.9">
+          <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px">
+            <div>
+              <div style="font-size:14px;font-weight:500;color:#1A3A5C">${p.invNombre||'Invitado'}</div>
+              <div style="font-size:11px;color:#888">${p.invCodigo||''} · ${p.standNombre}</div>
+            </div>
+            <span class="badge" style="background:#C0392B;color:#fff">❌ Cancelado</span>
+          </div>
+          <div style="font-size:12px;color:#666;margin-bottom:4px">
+            ${(p.items||[]).map(i=>i.desc).join(' · ')}
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:500">
+            <span style="color:#888">Cancelado: ${fecha}</span>
+            <span style="color:#C0392B">$${Number(p.total||0).toLocaleString('es-AR')}</span>
+          </div>
+          ${p.canceladoMotivo ? `<div style="font-size:11px;color:#aaa;margin-top:3px">${p.canceladoMotivo}</div>` : ''}
+        </div>`
+      }).join('')}
+      <div style="font-size:12px;color:#888;text-align:right;margin-top:8px">
+        Total cancelado: <strong style="color:#C0392B">
+          $${cancelados.reduce((s,p)=>s+(p.total||0),0).toLocaleString('es-AR')}
+        </strong>
+      </div>`
+  }
+
+  async function renderTabStock() {
+    const el = document.getElementById('tab-content')
+    el.innerHTML = '<div class="empty">Cargando stock...</div>'
+    const fmt = n => Number(n).toLocaleString('es-AR')
+    
+    // Load active carts for reserved calculation
+    let carritosItems = []
+    try { const ids = invitados.map(i => i.fireId); carritosItems = await leerTodosLosCarritos(ids); console.log("CARRITOS:", carritosItems.length) } catch(e) { console.log("ERROR carritos:", e) }
+
+    // Calculate reserved/paid/delivered from pedidos per vino
+    const vinoStats = {}
+    
+    // Reservado: from stock doc field (updated in real time by stand)
+
+    pedidos.forEach(p => {
+      (p.items||[]).forEach(item => {
+        const key = p.standId + '_' + (item.vinoId || item.vinoNombre || '')
+        if (!vinoStats[key]) vinoStats[key] = { reservado:0, pagado:0, entregado:0 }
+        const qty = item.qty || 1
+        if (p.estado === 'pagado' || p.estado === 'listo') vinoStats[key].pagado += qty
+        else if (p.estado === 'entregado') vinoStats[key].entregado += qty
+        else if (p.estado !== 'cancelado' && p.estado !== 'reembolsado') vinoStats[key].reservado += qty
+      })
+    })
+
+    if (!stockData.length) {
+      el.innerHTML = '<div class="empty" style="padding:40px">Sin stock cargado todavía.<br><br>Cargá el stock desde la pantalla de vinos de cada bodega.</div>'
+      return
+    }
+
+    el.innerHTML = `
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead>
+            <tr style="background:#1A3A5C;color:#fff">
+              <th style="padding:8px;text-align:left">Stand / Vino</th>
+              <th style="padding:8px;text-align:center">Stock</th>
+              <th style="padding:8px;text-align:center">Degustad.</th>
+              <th style="padding:8px;text-align:center">Reservado</th>
+              <th style="padding:8px;text-align:center">Pagado</th>
+              <th style="padding:8px;text-align:center">Entregado</th>
+              <th style="padding:8px;text-align:center;background:#3A7D44">Disponible</th>
+              <th style="padding:8px;text-align:center">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+${stockData.map((s, idx) => {
+              const stats = vinoStats[s.standId + '_' + s.vinoId] || { reservado:0, pagado:0, entregado:0 }
+              const bodega = BODEGAS.find(b => Number(b.id) === Number(s.standId))
+              const disponible = (s.total||0) - (s.degustacion||0) - stats.reservado - stats.pagado - stats.entregado
+              const dispColor = disponible <= 0 ? '#C0392B' : disponible <= 3 ? '#D97706' : '#3A7D44'
+              const bg = idx%2===0 ? '#fff' : '#F8FAFC'
+              return '<tr style="background:'+bg+';border-bottom:.5px solid #E8EFF5">' +
+                '<td style="padding:8px"><div style="font-weight:500;color:#1A3A5C">'+(s.vinoNombre||s.vinoId)+'</div>' +
+                '<div style="font-size:11px;color:#888">Stand #'+s.standId+' · '+(bodega?.nombre||'')+'</div></td>' +
+                '<td style="padding:8px;text-align:center;font-weight:500">'+(s.total||0)+'</td>' +
+                '<td style="padding:8px;text-align:center;color:#D97706">'+(s.degustacion||0)+'</td>' +
+                '<td style="padding:8px;text-align:center">'+stats.reservado+'</td>' +
+                '<td style="padding:8px;text-align:center">'+stats.pagado+'</td>' +
+                '<td style="padding:8px;text-align:center">'+stats.entregado+'</td>' +
+                '<td style="padding:8px;text-align:center;font-weight:600;color:'+dispColor+'">'+Math.max(0,disponible)+'</td>' +
+                '<td style="padding:8px;text-align:center">' +
+                '<button class="btn" style="font-size:10px;padding:3px 6px;margin-bottom:3px;display:block;width:100%" ' +
+                'data-sid="'+s.standId+'" data-vid="'+s.vinoId+'" data-nom="'+encodeURIComponent(s.vinoNombre||s.vinoId)+'" ' +
+                'onclick="window._agregarStock(this.dataset.sid,this.dataset.vid,decodeURIComponent(this.dataset.nom))">+ Stock</button>' +
+                '<button class="btn" style="font-size:10px;padding:3px 6px;color:#D97706;border-color:#D97706;display:block;width:100%" ' +
+                'data-sid="'+s.standId+'" data-vid="'+s.vinoId+'" data-nom="'+encodeURIComponent(s.vinoNombre||s.vinoId)+'" ' +
+                'onclick="window._agregarDegustation(this.dataset.sid,this.dataset.vid,decodeURIComponent(this.dataset.nom))">Degust.</button>' +
+                '</td></tr>'
+            }).join('')}
+          </tbody>
+        </table>
+      </div>`
+  }
+
+  window._agregarStock = async (standId, vinoId, nombre) => {
+    const cant = parseInt(prompt('Agregar stock para ' + nombre + '\n¿Cuántas botellas agregar?'))
+    if (!cant || cant <= 0) return
+    await actualizarStock(standId, vinoId, cant)
+    renderTabStock()
+  }
+
+  window._agregarDegustation = async (standId, vinoId, nombre) => {
+    const cant = parseInt(prompt('Registrar degustación para ' + nombre + '\n¿Cuántas botellas se abrieron?'))
+    if (!cant || cant <= 0) return
+    await registrarDegustacion(standId, vinoId, cant)
+    renderTabStock()
+  }
+
   function renderTabConfig() {
     document.getElementById('tab-content').innerHTML=`
       <div class="card" style="max-width:480px;margin-bottom:14px">
@@ -423,6 +585,16 @@ export function renderAdmin(app) {
             <a href="${url}" target="_blank" class="btn" style="padding:3px 8px;font-size:11px;color:#6B1C1C;border-color:#6B1C1C">Abrir</a>
           </div>`).join('')}
       </div>
+      <div class="card" style="max-width:480px;margin-bottom:14px">
+        <p style="font-size:13px;font-weight:500;color:#1A3A5C;margin-bottom:8px">🔐 PIN de acceso al admin</p>
+        <p style="font-size:12px;color:#666;margin-bottom:10px">PIN actual: 4 digitos numericos. Por defecto: 2027</p>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <input id="nuevo-pin" type="password" maxlength="4" placeholder="Nuevo PIN"
+            style="flex:1;text-align:center;font-size:18px;letter-spacing:.2em">
+          <button class="btn btn-v" style="padding:8px 14px" onclick="window._cambiarPin()">Guardar</button>
+        </div>
+        <div id="pin-msg" style="font-size:12px;text-align:center"></div>
+      </div>
       <div class="card" style="max-width:480px;border:1.5px solid #A32D2D">
         <p style="font-size:13px;font-weight:500;color:#A32D2D;margin-bottom:8px">⚠️ Zona peligrosa</p>
         <p style="font-size:12px;color:#666;margin-bottom:12px;line-height:1.6">
@@ -435,6 +607,16 @@ export function renderAdmin(app) {
         </button>
         <div id="limpiar-msg" style="margin-top:8px;font-size:12px;text-align:center"></div>
       </div>`
+  }
+
+  window._cambiarPin = () => {
+    const pin = document.getElementById('nuevo-pin').value.trim()
+    const msg = document.getElementById('pin-msg')
+    if (!/^\d{4}$/.test(pin)) { msg.innerHTML = '<span style="color:#C0392B">El PIN debe tener exactamente 4 digitos</span>'; return }
+    localStorage.setItem('sucovi-admin-pin', pin)
+    sessionStorage.setItem('admin-pin', pin)
+    msg.innerHTML = '<span style="color:#3B6D11">PIN actualizado correctamente</span>'
+    document.getElementById('nuevo-pin').value = ''
   }
 
   window._limpiar = async () => {
@@ -457,13 +639,25 @@ export function renderAdmin(app) {
     document.getElementById('mw-bdg').innerHTML=eBdg(inv.estado)
     const base=window.location.origin, link=`${base}/acceso?inv=${inv.token}`
     document.getElementById('mw-link').textContent=link
-    const waMsg=inv.estado==='pagado'
+    const waMsg=inv.estado==='ingresado'
+      ?`Hola ${inv.nombre}! 🍷\n\nYa estás dentro de SUCOVI 2027 — ¡disfrutá la noche!\n\nSi necesitás tu QR para los stands:\n👉 ${link}\n\n_Personal e intransferible._`
+      :inv.estado==='pagado'
       ?`Hola ${inv.nombre}! 🍷\n\nTe confirmo tu acreditación para *SUCOVI 2027*.\n\n📅 Sáb 20 jun 2026 · 19:30 hs\n📍 Roma 656, Olivos\n\n✅ *Bono confirmado* ($35.000)\nIncluye degustaciones + copa + empanada.\n\nTu QR personal:\n👉 ${link}\n\n_Personal e intransferible. Un solo uso en la entrada._`
       :`Hola ${inv.nombre}! 🍷\n\nQuedaste registrado/a en *SUCOVI 2027*.\n\n📅 Sáb 20 jun 2026 · 19:30 hs\n📍 Roma 656, Olivos\n\n⏳ Bono pendiente de pago ($35.000)\nPodés abonar en la puerta.\n\nConsultas: José Pannunzio +54 9 11 5400-1313`
     document.getElementById('mw-msg').textContent=waMsg
     const bp=document.getElementById('mw-btn-p')
-    if(inv.estado==='pendiente'){bp.textContent='✓ Marcar como pagado';bp.disabled=false;bp.style.display='block'}
-    else{bp.style.display='none'}
+    const estadoBadge=document.getElementById('mw-badge-estado')
+    if(inv.estado==='pendiente'){
+      bp.textContent='✓ Marcar como pagado';bp.disabled=false;bp.style.display='block'
+      bp.style.background='#D97706';bp.style.borderColor='#D97706'
+      if(estadoBadge){estadoBadge.textContent='⏳ Pendiente';estadoBadge.style.background='#FEF3C7';estadoBadge.style.color='#92400E'}
+    } else if(inv.estado==='ingresado') {
+      bp.style.display='none'
+      if(estadoBadge){estadoBadge.textContent='✅ Ingresó al evento';estadoBadge.style.background='#D1FAE5';estadoBadge.style.color='#065F46'}
+    } else {
+      bp.style.display='none'
+      if(estadoBadge){estadoBadge.textContent='✅ Bono confirmado';estadoBadge.style.background='#D1FAE5';estadoBadge.style.color='#065F46'}
+    }
     drawQR('mw-canvas',inv.codigo||inv.fireId,80)
     document.getElementById('modal-wa').style.display='flex'
   }
@@ -653,7 +847,24 @@ export function renderAdmin(app) {
     editInvFireId = null
   }
 
-  window._pagarM=async()=>{const inv=invitados.find(i=>i.fireId===modalInvFireId);if(!inv||inv.estado!=='pendiente')return;await actualizarInvitado(inv.fireId,{estado:'pagado'})}
+  window._pagarM=async()=>{
+    const inv=invitados.find(i=>i.fireId===modalInvFireId)
+    if(!inv||inv.estado!=='pendiente')return
+    // Update UI immediately
+    const btn=document.getElementById('mw-btn-p')
+    if(btn){btn.disabled=true;btn.textContent='✓ Pagado';btn.style.background='#3A7D44';btn.style.borderColor='#3A7D44'}
+    // Update badge
+    const badge=document.getElementById('mw-badge-estado')
+    if(badge){badge.textContent='✅ Bono pagado';badge.style.background='#D1FAE5';badge.style.color='#065F46'}
+    // Update message
+    const link=`${window.location.origin}/acceso?inv=${inv.token}`
+    const waMsg=`Hola ${inv.nombre}! 🍷\n\nTe confirmo tu acreditación para *SUCOVI 2027*.\n\n📅 Sáb 20 jun 2026 · 19:30 hs\n📍 Roma 656, Olivos\n\n✅ *Bono confirmado* ($35.000)\nIncluye degustaciones + copa + empanada.\n\nTu QR personal:\n👉 ${link}\n\n_Personal e intransferible. Un solo uso en la entrada._`
+    const msgEl=document.getElementById('mw-msg')
+    if(msgEl) msgEl.textContent=waMsg
+    // Save to Firebase
+    await actualizarInvitado(inv.fireId,{estado:'pagado'})
+  }
+  window._envWA=()=>{const msg=document.getElementById("mw-msg").textContent;const inv=invitados.find(i=>i.fireId===modalInvFireId);const tel=(inv?.tel||"").replace(/\D/g,"");if(tel)window.open("https://wa.me/"+tel+"?text="+encodeURIComponent(msg),"_blank");else alert("Sin teléfono cargado");}
   window._copWA=()=>{navigator.clipboard?.writeText(document.getElementById('mw-msg').textContent).catch(()=>{});const b=document.querySelector('#modal-wa .btn-g');const o=b.innerHTML;b.innerHTML='✓ ¡Copiado!';setTimeout(()=>b.innerHTML=o,2000)}
   window._cModal=()=>{document.getElementById('modal-wa').style.display='none';modalInvFireId=null}
 

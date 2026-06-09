@@ -1,6 +1,6 @@
 import { buildHeader } from '../header.js'
 // src/pages/bodegaVinos.js — Link propio de cada bodega para cargar vinos
-import { escucharVinos, guardarVino, actualizarVino, eliminarVino } from '../firebase.js'
+import { escucharVinos, guardarVino, actualizarVino, eliminarVino, actualizarStock } from '../firebase.js'
 import { injectStyles } from '../styles.js'
 const fmt = n => Number(n).toLocaleString('es-AR')
 
@@ -49,6 +49,7 @@ export function renderBodegaVinos(app, bodega) {
            ['vb','Precio botella ($)','number',''],
            ['v6','Precio caja x6 ($)','number',''],
            ['v12','Precio caja x12 ($)','number',''],
+           ['vs','Stock inicial (botellas) — opcional','number',''],
           ].map(([id,lbl,type,ph]) => `
           <div style="margin-bottom:8px">
             <label style="font-size:11px;color:#666">${lbl}</label>
@@ -118,13 +119,26 @@ export function renderBodegaVinos(app, bodega) {
     if (c6)  unidades.push({ u:'Caja x6',  p:c6  })
     if (c12) unidades.push({ u:'Caja x12', p:c12 })
     if (!unidades.length) { m.innerHTML='<span style="color:#A32D2D">Ingresá al menos un precio.</span>'; return }
+    const stockInicial = parseInt(document.getElementById('vs')?.value) || 0
     const data = { nombre, varietal:document.getElementById('vv').value.trim(),
       cosecha:document.getElementById('vc').value.trim(),
       descripcion:document.getElementById('vd').value.trim(), unidades }
     m.innerHTML='<span style="color:#888">Guardando...</span>'
     try {
-      if (editandoId) { await actualizarVino(bodega.id, editandoId, data); editandoId=null }
-      else { await guardarVino(bodega.id, data) }
+      if (editandoId) {
+        await actualizarVino(bodega.id, editandoId, data)
+        // Stock en edicion: ajustar si cambio
+        if (stockInicial > 0) {
+          const stockDoc = await import('../firebase.js').then(m => m.getStockDoc(bodega.id, editandoId))
+          const stockActual = stockDoc ? stockDoc.total : 0
+          const diff = stockInicial - stockActual
+          if (diff !== 0) await actualizarStock(bodega.id, editandoId, diff, data.nombre)
+        }
+        editandoId=null
+      } else {
+        const vinoId = await guardarVino(bodega.id, data)
+        if (stockInicial > 0 && vinoId) await actualizarStock(bodega.id, vinoId, stockInicial, data.nombre)
+      }
       limpiar()
       document.getElementById('form-titulo').textContent='Agregar vino'
       document.getElementById('btn-cancelar-edit').style.display='none'
@@ -133,8 +147,15 @@ export function renderBodegaVinos(app, bodega) {
     } catch(e) { m.innerHTML=`<span style="color:#A32D2D">Error: ${e.message}</span>` }
   }
 
-  window._editarV = (fireId) => {
+  window._editarV = async (fireId) => {
     const v = vinos.find(x => x.fireId === fireId); if (!v) return
+    // Load current stock
+    try {
+      const { getStockDoc } = await import('../firebase.js')
+      const stockDoc = await getStockDoc(bodega.id, fireId)
+      const vsEl = document.getElementById('vs')
+      if (vsEl && stockDoc) vsEl.value = stockDoc.total || ''
+    } catch(e) {}
     editandoId = fireId
     document.getElementById('form-titulo').textContent = `Editando: ${v.nombre}`
     document.getElementById('vn').value = v.nombre || ''

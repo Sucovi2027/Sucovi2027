@@ -1,6 +1,6 @@
 import { buildHeader, buildInvHeader } from '../header.js'
 // src/pages/stand.js
-import { escucharVinos, escucharCarrito, agregarAlCarrito,
+import { escucharVinos, escucharCarrito, agregarAlCarrito, escucharStock, intentarReservarStock, liberarReservaStock,
          eliminarItemCarrito, actualizarRetiroStand } from '../firebase.js'
 import { injectStyles } from '../styles.js'
 
@@ -12,19 +12,81 @@ export function renderStand(app, bodega, invitado) {
   // Sin invitado o inválido
   if (!invitado || invitado.estado === 'invalidado') {
     app.innerHTML = buildHeader({ title: '🍷 ' + bodega.nombre, sub: 'Stand #' + bodega.id + ' · Sucovi 2027' }) + `
-      <div style="max-width:400px;margin:60px auto;padding:0 16px;text-align:center">
+      <div style="max-width:400px;margin:40px auto;padding:0 16px;text-align:center">
         <div style="font-size:48px;margin-bottom:12px">🔒</div>
         <h2 style="font-size:18px;font-weight:500;color:#6B1C1C;margin-bottom:8px">
           Acceso requerido
         </h2>
-        <p style="font-size:14px;color:#666;line-height:1.6">
-          Para hacer pedidos necesitás escanear tu QR personal de acreditación primero.<br><br>
-          Si ya tenés tu QR, escanealo nuevamente.
+        <p style="font-size:14px;color:#666;line-height:1.6;margin-bottom:20px">
+          Escaneá el QR personal del invitado o ingresá su código manualmente.
         </p>
-        <p style="font-size:12px;color:#aaa;margin-top:16px">
+
+        <!-- Ingreso manual -->
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <input id="inv-cod-manual" placeholder="INV-0001.Apellido"
+            style="flex:1;font-size:15px;text-transform:uppercase;letter-spacing:.05em;text-align:center"
+            onkeydown="if(event.key==='Enter') window._buscarInvStand()">
+          <button class="btn btn-v" onclick="window._buscarInvStand()" style="white-space:nowrap">
+            Ir →
+          </button>
+        </div>
+        <button class="btn btn-b" onclick="window._abrirScannerStand()"
+          style="width:100%;padding:10px;font-size:13px;margin-bottom:12px">
+          📷 Escanear QR del invitado
+        </button>
+        <div id="inv-cod-err" style="font-size:12px;color:#C0392B;margin-bottom:12px"></div>
+
+        <!-- Scanner overlay -->
+        <div id="scan-overlay-stand" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
+          background:rgba(26,58,92,.92);z-index:300;flex-direction:column;
+          align-items:center;justify-content:center;gap:16px">
+          <p style="color:#fff;font-size:14px;font-weight:500">Apuntá al QR del invitado</p>
+          <video id="scan-video-stand" autoplay playsinline muted
+            style="width:280px;height:280px;object-fit:cover;border-radius:12px"></video>
+          <p id="scan-status-stand" style="color:#C9A96E;font-size:13px">Iniciando...</p>
+          <button onclick="window._cerrarScannerStand()"
+            style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);
+              border-radius:8px;padding:8px 20px;cursor:pointer;font-size:13px">
+            Cancelar
+          </button>
+        </div>
+
+        <p style="font-size:12px;color:#aaa;margin-top:8px">
           Consultas: José Pannunzio +54 9 11 5400-1313
         </p>
       </div>`
+
+    // Load invitados to search by code
+    window._buscarInvStand = async () => {
+      const input = (document.getElementById('inv-cod-manual')?.value || '').trim()
+      const errEl = document.getElementById('inv-cod-err')
+      if (!input) return
+
+      // Format: V001.Apellido
+      const parts = input.split('.')
+      if (parts.length !== 2) {
+        errEl.textContent = 'Formato: INV-0001.Apellido'
+        return
+      }
+      const cod = parts[0].toUpperCase().trim()
+      const apellidoIngresado = parts[1].toLowerCase().trim()
+
+      errEl.textContent = 'Buscando...'
+      try {
+        const { buscarInvitadoPorCodigo } = await import('../firebase.js')
+        const inv = await buscarInvitadoPorCodigo(cod)
+        if (!inv) { errEl.textContent = 'Código no encontrado'; return }
+        if (inv.estado === 'invalidado') { errEl.textContent = 'Invitado invalidado'; return }
+        // Verify apellido
+        if (!inv.apellido.toLowerCase().startsWith(apellidoIngresado)) {
+          errEl.textContent = 'Código o apellido incorrecto'
+          return
+        }
+        window.location.href = '/stand/' + bodega.id + '?inv=' + inv.token
+      } catch(e) {
+        errEl.textContent = 'Error: ' + e.message
+      }
+    }
     return
   }
 
@@ -44,7 +106,7 @@ export function renderStand(app, bodega, invitado) {
   }
 
   let vinos = [], carritoStand = null, retiro = 'stand'
-  const invLink = `/acceso?inv=${invitado.token}`
+  const invLink = `/carrito?inv=${invitado.token}`
 
   app.innerHTML = buildHeader({
     title: '🍷 ' + bodega.nombre,
@@ -75,20 +137,9 @@ export function renderStand(app, bodega, invitado) {
           <div class="retiro-btn sel" id="rb-stand" onclick="window._sRet('stand')">
             🍷<br><span style="font-size:11px">Retiro en stand</span>
           </div>
-          <div class="retiro-btn" id="rb-envio" onclick="window._sRet('envio')">
-            🚚<br><span style="font-size:11px">Envío a domicilio</span>
-          </div>
+  
         </div>
-        <div id="envio-form" style="display:none;margin-bottom:12px">
-          <div class="card">
-            <p style="font-size:12px;font-weight:500;color:#5A1E99;margin-bottom:8px">
-              🚚 Datos de envío para ${bodega.nombre}
-            </p>
-            <div style="display:flex;flex-direction:column;gap:6px">
-              <input id="env-nom" placeholder="Nombre completo">
-              <input id="env-tel" placeholder="Teléfono de contacto">
-              <input id="env-dir" placeholder="Dirección completa">
-            </div>
+
           </div>
         </div>
       </div>
@@ -119,12 +170,33 @@ export function renderStand(app, bodega, invitado) {
     </button>`
 
   // Escuchar vinos
+  let stockDisponible = {}
+  escucharStock(stockDocs => {
+    console.log("STOCK DOCS:", stockDocs.length, "bodega:", bodega.id)
+    stockDisponible = {}
+    stockDocs.filter(s => Number(s.standId) === Number(bodega.id)).forEach(s => {
+      stockDisponible[s.vinoId] = (s.total||0) - (s.degustacion||0) - (s.reservado||0) - (s.pagado||0) - (s.entregado||0)
+    })
+  })
+
   escucharVinos(bodega.id, data => { vinos = data; renderMenu() })
+
+  const localQty = {}
 
   // Escuchar carrito de este invitado para mostrar resumen
   escucharCarrito(invitado.fireId, items => {
     const standItem = items.find(i => Number(i.standId) === bodega.id)
     carritoStand = standItem || null
+    if (standItem && standItem.items) {
+      standItem.items.forEach(item => {
+        if (item.key && localQty[item.key] === undefined) {
+          localQty[item.key] = item.qty || 0
+          const [vi, ui] = item.key.split('_').map(Number)
+          const el = document.getElementById('qv' + vi + '_' + ui)
+          if (el) el.textContent = localQty[item.key]
+        }
+      })
+    }
     const total = items.reduce((s, si) =>
       s + (si.items || []).reduce((ss, i) => ss + (i.sub || 0), 0), 0)
     const totalItems = items.reduce((s, si) => s + (si.items || []).length, 0)
@@ -140,7 +212,7 @@ export function renderStand(app, bodega, invitado) {
     if (standItem && standItem.items?.length) {
       retiro = standItem.retiro || 'stand'
       document.getElementById('rb-stand')?.classList.toggle('sel', retiro === 'stand')
-      document.getElementById('rb-envio')?.classList.toggle('sel', retiro === 'envio')
+
       document.getElementById('retiro-box').style.display = 'block'
       document.getElementById('stand-resumen').style.display = 'block'
       document.getElementById('stand-resumen-lines').innerHTML =
@@ -186,16 +258,27 @@ export function renderStand(app, bodega, invitado) {
   }
 
   // local qty state
-  const localQty = {}
 
   window._agregar = async (vi, ui, delta) => {
     const v = vinos[vi]; if (!v) return
     const u = (v.unidades || [])[ui]; if (!u) return
     const key = `${vi}_${ui}`
+    if (delta > 0) {
+      const vid = v.fireId||v.id
+      const ok = await intentarReservarStock(bodega.id, vid, delta)
+      if (!ok) {
+        const msg = document.getElementById("add-msg")
+        msg.textContent = "Sin stock disponible"
+        msg.style.cssText = "font-size:16px;color:#C0392B;text-align:center;padding:8px"
+        setTimeout(() => { msg.textContent = ""; msg.style.cssText = "" }, 2500)
+        return
+      }
+    }
     localQty[key] = Math.max(0, (localQty[key] || 0) + delta)
     const el = document.getElementById(`qv${vi}_${ui}`)
     if (el) el.textContent = localQty[key]
 
+    if (delta < 0) await liberarReservaStock(bodega.id, v.fireId||v.id, 1).catch(()=>{})
     if (localQty[key] === 0) {
       await eliminarItemCarrito(invitado.fireId, bodega.id, key)
     } else {
@@ -203,21 +286,28 @@ export function renderStand(app, bodega, invitado) {
         key,
         desc: `${v.nombre} — ${u.u} ×${localQty[key]}`,
         sub:  u.p * localQty[key],
-        vinoNombre: v.nombre, unidad: u.u, precio: u.p, qty: localQty[key]
+        vinoNombre: v.nombre, vinoId: v.fireId||v.id||v.nombre, unidad: u.u, precio: u.p, qty: localQty[key]
       }
-      await agregarAlCarrito(invitado.fireId, bodega.id, bodega.nombre, item, retiro)
-      document.getElementById('retiro-box').style.display = 'block'
       const msg = document.getElementById('add-msg')
-      msg.textContent = `✓ ${v.nombre} (${u.u}) agregado al carrito`
-      setTimeout(() => { msg.textContent = '' }, 2000)
+      msg.textContent = '⏳ Guardando...'
+      msg.style.cssText = 'font-size:18px;color:#5BA4CF;text-align:center;padding:8px'
+      await agregarAlCarrito(invitado.fireId, bodega.id, bodega.nombre, item, retiro)
+
+      // Update local stockDisponible immediately
+      const vid = v.fireId||v.id
+      if (stockDisponible[vid] !== undefined) stockDisponible[vid] = Math.max(0, stockDisponible[vid] - delta)
+      document.getElementById('retiro-box').style.display = 'block'
+      msg.textContent = '✓ Agregado al carrito'
+      msg.style.cssText = 'font-size:18px;color:#3B6D11;text-align:center;padding:8px'
+      setTimeout(() => { msg.textContent = ''; msg.style.cssText = '' }, 2500)
     }
   }
 
   window._sRet = async (r) => {
     retiro = r
     document.getElementById('rb-stand').classList.toggle('sel', r === 'stand')
-    document.getElementById('rb-envio').classList.toggle('sel', r === 'envio')
-    document.getElementById('envio-form').style.display = r === 'envio' ? 'block' : 'none'
+
+    
     await actualizarRetiroStand(invitado.fireId, bodega.id, r)
   }
 
@@ -228,4 +318,60 @@ export function renderStand(app, bodega, invitado) {
     const el = document.getElementById(`qv${vi}_${ui}`)
     if (el) el.textContent = 0
   }
+}
+
+// Scanner global para stand/acceso
+window._abrirScannerStand = async () => {
+  const overlay = document.getElementById('scan-overlay-stand')
+  if (overlay) overlay.style.display = 'flex'
+  const statusEl = document.getElementById('scan-status-stand')
+  try {
+    if (!window.jsQR) {
+      await new Promise((res,rej) => {
+        const s = document.createElement('script')
+        s.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js'
+        s.onload = res; s.onerror = rej; document.head.appendChild(s)
+      })
+    }
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+    const video = document.getElementById('scan-video-stand')
+    video.srcObject = stream
+    if (statusEl) statusEl.textContent = 'Buscando QR...'
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    let active = true
+    const stop = () => { active = false; stream.getTracks().forEach(t => t.stop()) }
+    const tick = () => {
+      if (!active) return
+      if (video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth > 0) {
+        canvas.width = video.videoWidth; canvas.height = video.videoHeight
+        ctx.drawImage(video, 0, 0)
+        const img = ctx.getImageData(0, 0, canvas.width, canvas.height)
+        const code = window.jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' })
+        if (code && code.data) {
+          stop()
+          window._cerrarScannerStand()
+          const raw = code.data
+          const matchToken = raw.match(/inv=([A-Z0-9]+)/i)
+          // Get current stand id from URL
+          const standId = window.location.pathname.split('/')[2]
+          if (matchToken && standId) {
+            window.location.href = '/stand/' + standId + '?inv=' + matchToken[1]
+          }
+          return
+        }
+      }
+      if (active) requestAnimationFrame(tick)
+    }
+    video.addEventListener('loadeddata', () => requestAnimationFrame(tick))
+  } catch(e) {
+    if (statusEl) statusEl.textContent = 'No se pudo acceder a la camara.'
+  }
+}
+
+window._cerrarScannerStand = () => {
+  const overlay = document.getElementById('scan-overlay-stand')
+  if (overlay) overlay.style.display = 'none'
+  const video = document.getElementById('scan-video-stand')
+  if (video && video.srcObject) { video.srcObject.getTracks().forEach(t => t.stop()); video.srcObject = null }
 }

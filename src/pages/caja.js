@@ -1,6 +1,6 @@
 // src/pages/caja.js
-import { escucharInvitados, leerCarrito, crearPedidosDesdeCarrito,
-         vaciarCarrito, escucharPedidos } from '../firebase.js'
+import { escucharInvitados, leerCarrito, crearPedidosDesdeCarrito, cobrarStock,
+         vaciarCarrito, escucharPedidos, cancelarPedido, reembolsarPedido } from '../firebase.js'
 import { injectStyles } from '../styles.js'
 import { buildHeader } from '../header.js'
 
@@ -31,7 +31,7 @@ export function renderCaja(app) {
     <div class="nav">
       <button class="on" onclick="window._cajaVista('cobrar',this)">💳 Cobrar</button>
       <button onclick="window._cajaVista('pedidos',this)">📋 Pedidos</button>
-      <button onclick="window._cajaVista('logistica',this)">🚚 Envíos</button>
+
     </div>
     <div id="caja-content" class="wrap"></div>
 
@@ -69,7 +69,7 @@ export function renderCaja(app) {
   function renderVista() {
     if (vista === 'cobrar') renderCobrar()
     if (vista === 'pedidos') renderPedidosPagados()
-    if (vista === 'logistica') renderEnvios()
+
   }
 
   // Cache de carritos activos
@@ -77,7 +77,7 @@ export function renderCaja(app) {
 
   async function cargarCarritosActivos() {
     // Carga carritos de todos los invitados en paralelo (solo los activos)
-    const activos = invitados.filter(i => i.estado !== 'invalidado')
+    const activos = invitados.filter(i => i.estado === 'ingresado')
     const resultados = await Promise.all(
       activos.map(async inv => {
         try {
@@ -249,7 +249,7 @@ export function renderCaja(app) {
           </p>
         </div>
         <div id="cobro-msg" style="font-size:12px;text-align:center;margin-bottom:8px"></div>
-        <button class="btn btn-g" style="width:100%;padding:14px;font-size:16px"
+        <button class="btn btn-g" style="width:100%;padding:14px;font-size:16px;margin-bottom:8px"
           onclick="window._cobrar()">
           ✓ Cobrar $${fmt(total)} y generar vouchers
         </button>
@@ -261,6 +261,14 @@ export function renderCaja(app) {
           <button class="btn btn-g" style="width:100%;padding:10px;font-size:14px"
             onclick="window._enviarVouchersWA()">
             📱 Enviar por WhatsApp
+          </button>
+          <button class="btn" style="width:100%;padding:10px;font-size:14px;background:#6B21A8;color:#fff;border-color:#6B21A8"
+            onclick="window._descargarVoucherPDF()">
+            ⬇️ Descargar PDF
+          </button>
+          <button class="btn" style="width:100%;padding:10px;font-size:13px;color:#C0392B;border-color:#C0392B"
+            onclick="window._cancelarCarrito()">
+            ❌ Cancelar y vaciar carrito
           </button>
         </div>`}
     `
@@ -274,47 +282,97 @@ export function renderCaja(app) {
     win.document.write(`<!DOCTYPE html><html><head>
       <meta charset="utf-8">
       <title>Vouchers - ${inv.nombre} ${inv.apellido}</title>
+      <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"><\/script>
       <style>
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family: system-ui, sans-serif; padding: 16px; }
         .voucher { border: 2px solid #1A3A5C; border-radius: 10px; padding: 16px;
           margin-bottom: 16px; page-break-inside: avoid; }
+
         .header { display: flex; justify-content: space-between; margin-bottom: 10px;
           border-bottom: 1px solid #D6E4F0; padding-bottom: 8px; }
         .evento { font-size: 10px; color: #888; letter-spacing: .08em; }
-        .stand { font-size: 16px; font-weight: 600; color: #1A3A5C; }
-        .inv { font-size: 13px; color: #444; }
-        .item { display: flex; justify-content: space-between; font-size: 12px;
+        .stand { font-size: 22px; font-weight: 600; color: #1A3A5C; }
+        .inv { font-size: 16px; color: #444; }
+        .item { display: flex; justify-content: space-between; font-size: 15px;
           padding: 4px 0; border-bottom: .5px solid #eee; }
-        .total { display: flex; justify-content: space-between; font-size: 15px;
+        .total { display: flex; justify-content: space-between; font-size: 20px;
           font-weight: 600; margin-top: 8px; color: #1A3A5C; }
         .badge { background: #3A7D44; color: #fff; padding: 3px 12px;
-          border-radius: 20px; font-size: 11px; display: inline-block; margin-top: 8px; }
+          border-radius: 20px; font-size: 11px; display: inline-block; margin-bottom:6px; }
+        .qr-box { display:flex;flex-direction:column;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid #D6E4F0; }
+        .qr-hint { font-size:12px;color:#888;text-align:center;margin-top:6px }
         @media print { body { padding: 0; } }
       </style>
     </head><body>
-    ${items.map(stand => `
+    ${window._lastPedidosIds ? window._lastPedidosIds.map((pedidoId, idx) => {
+      const stand = items[idx]
+      if (!stand) return ''
+      return `
       <div class="voucher">
-        <div class="header">
-          <div>
-            <div class="evento">SUCOVI 2027 · VOUCHER DE RETIRO</div>
-            <div class="stand">🍷 ${stand.standNombre}</div>
-            <div class="inv">${inv.nombre} ${inv.apellido} · ${inv.codigo}</div>
+        <div class="voucher-body">
+          <div class="header">
+            <div>
+              <div class="evento">SUCOVI 2027 · VOUCHER DE RETIRO${window._lastPedidosIds && items[idx] ? ' · VOC-'+String((window._lastVoucherNums||[])[idx]||0).padStart(3,'0') : ''}</div>
+              <div class="stand">${stand.standNombre}</div>
+              <div class="inv">${inv.nombre} ${inv.apellido} · ${inv.codigo}</div>
+            </div>
+            <div style="text-align:right">
+              <div class="badge">✅ PAGADO</div>
+              <div style="font-size:10px;color:#888;margin-top:4px">Stand #${stand.standId}</div>
+            </div>
           </div>
-          <div style="text-align:right">
-            <div class="badge">✅ PAGADO</div>
-            <div style="font-size:10px;color:#888;margin-top:4px">Stand #${stand.standId}</div>
+          ${(stand.items||[]).map(i => `
+            <div class="item"><span>${i.desc}</span><strong>$${fmt(i.sub)}</strong></div>
+          `).join('')}
+          <div class="total">
+            <span>Total</span>
+            <span>$${fmt((stand.items||[]).reduce((s,i)=>s+(i.sub||0),0))}</span>
           </div>
         </div>
-        ${(stand.items||[]).map(i => `
-          <div class="item"><span>${i.desc}</span><strong>$${fmt(i.sub)}</strong></div>
-        `).join('')}
-        <div class="total">
-          <span>Total</span>
-          <span>$${fmt((stand.items||[]).reduce((s,i)=>s+(i.sub||0),0))}</span>
+        <div class="qr-box">
+          <canvas id="qr-${idx}"></canvas>
+          <div class="qr-hint">Escaneá en el stand</div>
+        </div>
+      </div>`
+    }).join('') : items.map(stand => `
+      <div class="voucher">
+        <div class="voucher-body">
+          <div class="header">
+            <div>
+              <div class="evento">SUCOVI 2027 · VOUCHER DE RETIRO${window._lastPedidosIds && items[idx] ? ' · VOC-'+String((window._lastVoucherNums||[])[idx]||0).padStart(3,'0') : ''}</div>
+              <div class="stand">${stand.standNombre}</div>
+              <div class="inv">${inv.nombre} ${inv.apellido} · ${inv.codigo}</div>
+            </div>
+            <div style="text-align:right">
+              <div class="badge">✅ PAGADO</div>
+            </div>
+          </div>
+          ${(stand.items||[]).map(i => `
+            <div class="item"><span>${i.desc}</span><strong>$${fmt(i.sub)}</strong></div>
+          `).join('')}
+          <div class="total"><span>Total</span><span>$${fmt((stand.items||[]).reduce((s,i)=>s+(i.sub||0),0))}</span></div>
         </div>
       </div>`).join('')}
-    <script>window.print(); window.close();<\/script>
+    <script>
+      if (typeof qrcode !== 'undefined' && window.opener && window.opener._lastPedidosIds) {
+        window.opener._lastPedidosIds.forEach((id, idx) => {
+          const c = document.getElementById('qr-' + idx)
+          if (!c) return
+          const qr = qrcode(0, 'M')
+          qr.addData(id)
+          qr.make()
+          const mod = qr.getModuleCount(), sz = 200, cs = sz/mod
+          c.width = sz; c.height = sz
+          const ctx = c.getContext('2d')
+          ctx.fillStyle = '#fff'; ctx.fillRect(0,0,sz,sz)
+          ctx.fillStyle = '#000'
+          for(let r=0;r<mod;r++) for(let col=0;col<mod;col++)
+            if(qr.isDark(r,col)) ctx.fillRect(col*cs,r*cs,cs,cs)
+        })
+      }
+      setTimeout(() => { window.print(); }, 800)
+    <\/script>
     </body></html>`)
     win.document.close()
   }
@@ -335,6 +393,13 @@ export function renderCaja(app) {
     window.open(waUrl, '_blank')
   }
 
+  window._cancelarCarrito = async () => {
+    if (!confirm('¿Cancelar y vaciar el carrito de ' + invSeleccionado.nombre + '?')) return
+    await vaciarCarrito(invSeleccionado.fireId)
+    invSeleccionado = null; carritoInv = []
+    renderCobrar()
+  }
+
   window._volverCobrar = () => { invSeleccionado = null; carritoInv = []; renderCobrar() }
 
   window._cobrar = async () => {
@@ -346,6 +411,12 @@ export function renderCaja(app) {
     const msg = document.getElementById('cobro-msg')
     try {
       await crearPedidosDesdeCarrito(inv, items)
+      // Mover reservado a pagado en stock
+      for (const stand of items) {
+        for (const item of (stand.items||[])) {
+          if (item.vinoId) await cobrarStock(stand.standId, item.vinoId, item.qty||1).catch(()=>{})
+        }
+      }
       await vaciarCarrito(inv.fireId)
       msg.innerHTML = `<span style="color:#065F46;font-size:14px;font-weight:500">
         ✅ ¡Cobrado! ${items.length} voucher${items.length>1?'s':''} generado${items.length>1?'s':''}.
@@ -353,8 +424,16 @@ export function renderCaja(app) {
       if (btn) btn.style.display = 'none'
       const va = document.getElementById('voucher-actions')
       if (va) va.style.display = 'flex'
-      // Store cobrado data for print/WA
+      // Store cobrado data for print/WA — get pedido IDs from Firebase
       window._lastCobrado = { inv, items }
+      // Load pedido IDs for QR generation
+      const { escucharPedidosPorInvitado } = await import('../firebase.js')
+      escucharPedidosPorInvitado(inv.fireId, peds => {
+        const nuevos = peds.filter(p => items.some(s => s.standId === p.standId))
+        window._lastPedidosIds = nuevos.map(p => p.fireId)
+        window._lastVoucherNums = nuevos.map(p => p.voucherNum||0)
+        console.log('voucherNums:', window._lastVoucherNums)
+      })
     } catch(e) {
       msg.innerHTML = `<span style="color:#C0392B">Error: ${e.message}</span>`
       if (btn) { btn.disabled = false; btn.textContent = 'Reintentar' }
@@ -363,25 +442,233 @@ export function renderCaja(app) {
 
   function renderPedidosPagados() {
     const el = document.getElementById('caja-content')
+    // Group by invitado
     const peds = pedidosExistentes.filter(p => p.retiro !== 'envio')
     const LE = { pagado:'Pagado', listo:'Listo', entregado:'Entregado' }
     const BE = { pagado:'b-pago', listo:'b-list', entregado:'b-entr' }
     if (!peds.length) { el.innerHTML = '<div class="empty">Sin pedidos aún</div>'; return }
-    el.innerHTML = peds.map(p => `
-      <div class="card" style="margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <span style="font-size:13px;font-weight:500;color:#1A3A5C;min-width:52px">
-          #${p.fireId?.slice(-4).toUpperCase()}
-        </span>
-        <div style="flex:1;min-width:80px">
-          <div style="font-size:12px;font-weight:500">${p.invNombre||''}</div>
-          <div style="font-size:11px;color:#888">${p.standNombre}</div>
+    // Group by invFireId
+    const byInv = {}
+    peds.forEach(p => {
+      if (!byInv[p.invFireId]) byInv[p.invFireId] = { nombre: p.invNombre, codigo: p.invCodigo||'', peds: [] }
+      byInv[p.invFireId].peds.push(p)
+    })
+    el.innerHTML = Object.entries(byInv).map(([invId, data]) => {
+      const total = data.peds.reduce((s,p) => s+(p.total||0), 0)
+      return `
+      <div class="card" style="margin-bottom:10px;cursor:pointer" onclick="window._verDetallePedido('${invId}')">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="avatar" style="width:36px;height:36px;font-size:12px;flex-shrink:0">
+            ${(data.nombre||'??')[0]}${(data.nombre||'??').split(' ')[1]?.[0]||''}
+          </div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:14px;font-weight:500">${data.nombre||''}</div>
+            <div style="font-size:11px;color:#888">${data.peds.length} stand${data.peds.length>1?'s':''} · ${data.peds.map(p=>'<span class="badge '+BE[p.estado]+'" style="font-size:10px">'+p.standNombre+'</span>').join(' ')}</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:15px;font-weight:500">$${fmt(total)}</div>
+            <div style="font-size:11px;color:#5BA4CF">Ver detalle ›</div>
+          </div>
         </div>
-        <span style="font-size:12px;color:#666;flex:2;min-width:80px">
-          ${(p.items||[]).map(i=>i.desc).join(' · ')}
-        </span>
-        <span style="font-size:14px;font-weight:500">$${fmt(p.total||0)}</span>
-        <span class="badge ${BE[p.estado]||'b-pago'}">${LE[p.estado]||p.estado}</span>
-      </div>`).join('')
+      </div>`
+    }).join('')
+  }
+
+  window._verDetallePedido = (invFireId) => {
+    const el = document.getElementById('caja-content')
+    const peds = pedidosExistentes.filter(p => p.invFireId === invFireId)
+    const inv = invitados.find(i => i.fireId === invFireId) || { nombre: peds[0]?.invNombre||'', apellido:'', codigo: peds[0]?.invCodigo||'', tel:'' }
+    const items = peds.filter(p => p.estado !== 'reembolsado' && p.estado !== 'cancelado').map(p => ({
+      standId: p.standId, standNombre: p.standNombre, retiro: p.retiro,
+      items: p.items||[], fireId: p.fireId
+    }))
+    const total = peds.filter(p => p.estado !== 'reembolsado' && p.estado !== 'cancelado')
+                      .reduce((s,p) => s+(p.total||0), 0)
+    window._lastCobrado = { inv, items }
+    window._lastPedidosIds = peds.filter(p => p.estado === 'pagado').map(p => p.fireId)
+
+    const colorBorde = { pagado:'#5BA4CF', entregado:'#3A7D44', reembolsado:'#C0392B', cancelado:'#C0392B', listo:'#D97706' }
+    const BE = { pagado:'b-pago', listo:'b-list', entregado:'b-entr', reembolsado:'b-canc', cancelado:'b-canc' }
+    const LE = { pagado:'💳 Pagado', listo:'✅ Listo', entregado:'📦 Entregado', reembolsado:'↩️ Reembolsado', cancelado:'❌ Cancelado' }
+
+    el.innerHTML = `
+      <button class="btn" onclick="window._cajaVista('pedidos', document.querySelector('.nav button:nth-child(2)'))"
+        style="margin-bottom:14px;color:#1A3A5C;border-color:#1A3A5C">← Volver</button>
+      <div class="card" style="margin-bottom:12px">
+        <div style="font-size:16px;font-weight:500">${inv.nombre} ${inv.apellido}</div>
+        <div style="font-size:12px;color:#888">${inv.codigo}${inv.tel?' · '+inv.tel:''}</div>
+      </div>
+      ${peds.map(p => `
+        <div class="card" style="margin-bottom:10px;border-left:4px solid ${colorBorde[p.estado]||'#5BA4CF'};
+          ${p.estado==='reembolsado'||p.estado==='cancelado'?'opacity:.7':''}">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <div style="font-size:13px;font-weight:500;color:#1A3A5C">🍷 ${p.standNombre}</div>
+            <span class="badge ${BE[p.estado]||'b-pago'}">${LE[p.estado]||p.estado}</span>
+          </div>
+          ${(p.items||[]).map(i => `
+            <div style="display:flex;justify-content:space-between;font-size:13px;
+              padding:4px 0;border-bottom:.5px solid #E8EFF5;color:#555;
+              ${p.estado==='reembolsado'||p.estado==='cancelado'?'text-decoration:line-through':''}">
+              <span>${i.desc}</span><strong>$${fmt(i.sub)}</strong>
+            </div>`).join('')}
+          <div style="display:flex;justify-content:space-between;font-size:14px;
+            font-weight:500;margin-top:8px;color:#1A3A5C">
+            <span>Subtotal</span>
+            <span ${p.estado==='reembolsado'||p.estado==='cancelado'?'style="text-decoration:line-through;color:#C0392B"':''}>
+              $${fmt(p.total||0)}
+            </span>
+          </div>
+          ${p.estado==='pagado' ? `
+            <button class="btn" style="margin-top:10px;width:100%;padding:7px;font-size:12px;
+              color:#C0392B;border-color:#C0392B"
+              onclick="window._reembolsarUnPedido('${p.fireId}','${invFireId}')">
+              ↩️ Reembolsar este stand
+            </button>` : ''}
+          ${p.estado==='reembolsado' ? `
+            <div style="font-size:11px;color:#C0392B;margin-top:6px">
+              Reembolsado el ${p.reembolsadoAt ? new Date(p.reembolsadoAt).toLocaleString('es-AR') : ''}
+            </div>` : ''}
+        </div>`).join('')}
+      <div class="card" style="margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;font-size:18px;font-weight:500">
+          <span>TOTAL COBRADO</span><span style="color:#1A3A5C">$${fmt(total)}</span>
+        </div>
+        <div style="font-size:11px;color:#888;margin-top:4px">Sin incluir reembolsos</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-direction:column">
+        <button class="btn btn-b" style="width:100%;padding:10px;font-size:14px"
+          onclick="window._imprimirVouchers()">🖨️ Imprimir vouchers</button>
+        <button class="btn btn-g" style="width:100%;padding:10px;font-size:14px"
+          onclick="window._enviarVouchersWA()">📱 Enviar por WhatsApp</button>
+        <button class="btn" style="width:100%;padding:10px;font-size:14px;background:#6B21A8;color:#fff;border-color:#6B21A8"
+          onclick="window._descargarVoucherPDF()">⬇️ Descargar PDF</button>
+      </div>`
+  }
+
+  window._reembolsarUnPedido = async (fireId, invFireId) => {
+    if (!confirm('¿Reembolsar este pedido? El stand no podrá marcarlo como entregado.')) return
+    await reembolsarPedido(fireId)
+    window._verDetallePedido(invFireId)
+  }
+
+  window._descargarVoucherPDF = async () => {
+    const { inv, items } = window._lastCobrado || {}
+    if (!inv || !items) return
+
+    // Load jsPDF
+    if (!window.jspdf) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script')
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
+        s.onload = res; s.onerror = rej
+        document.head.appendChild(s)
+      })
+    }
+    // Load QR lib
+    if (!window.qrcode) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script')
+        s.src = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js'
+        s.onload = res; s.onerror = rej
+        document.head.appendChild(s)
+      })
+    }
+
+    const { jsPDF } = window.jspdf
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+    const pids = window._lastPedidosIds || []
+    let y = 15
+
+    const drawVoucher = (item, pid, startY) => {
+      const h = 80
+      // Border
+      doc.setDrawColor(26, 58, 92)
+      doc.setLineWidth(0.4)
+      doc.roundedRect(10, startY, 190, h, 3, 3, 'S')
+      // Header bar
+      doc.setFillColor(26, 58, 92)
+      doc.roundedRect(10, startY, 190, 18, 3, 3, 'F')
+      doc.setFillColor(26, 58, 92)
+      doc.rect(10, startY+12, 190, 6, 'F')
+      // Gold line
+      doc.setFillColor(201, 169, 110)
+      doc.rect(10, startY+18, 190, 1.5, 'F')
+      // Header text
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(11)
+      doc.setFont('helvetica', 'bold')
+      doc.text('SUCOVI 2027 · VOUCHER DE RETIRO', 15, startY+10)
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.text('Stand #' + item.standId, 185, startY+10, { align: 'right' })
+      // Body
+      doc.setTextColor(26, 58, 92)
+      doc.setFontSize(13)
+      doc.setFont('helvetica', 'bold')
+      doc.text('🍷 ' + item.standNombre, 15, startY+28)
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(80, 80, 80)
+      doc.text((inv.nombre||'') + ' ' + (inv.apellido||'') + ' · ' + (inv.codigo||''), 15, startY+36)
+      // Items
+      let iy = startY+44
+      ;(item.items||[]).forEach(i => {
+        doc.setFontSize(10)
+        doc.setTextColor(60, 60, 60)
+        doc.text(i.desc, 15, iy)
+        doc.setFont('helvetica', 'bold')
+        doc.text('$' + Number(i.sub).toLocaleString('es-AR'), 195, iy, { align: 'right' })
+        doc.setFont('helvetica', 'normal')
+        iy += 7
+      })
+      // Total
+      doc.setDrawColor(200, 200, 200)
+      doc.setLineWidth(0.3)
+      doc.line(15, iy, 195, iy)
+      iy += 5
+      doc.setFontSize(12)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(26, 58, 92)
+      doc.text('Total', 15, iy)
+      doc.text('$' + Number((item.items||[]).reduce((s,i)=>s+(i.sub||0),0)).toLocaleString('es-AR'), 195, iy, { align: 'right' })
+      // Badge
+      doc.setFillColor(58, 125, 68)
+      doc.roundedRect(130, startY+26, 30, 8, 2, 2, 'F')
+      doc.setTextColor(255,255,255)
+      doc.setFontSize(7)
+      doc.setFont('helvetica', 'bold')
+      doc.text('✅ PAGADO', 145, startY+31.5, { align: 'center' })
+      // QR
+      if (pid && window.qrcode) {
+        try {
+          const qr = window.qrcode(0, 'M')
+          qr.addData(pid)
+          qr.make()
+          const modules = qr.getModuleCount()
+          const sz = 28
+          const cs = sz / modules
+          const qx = 168, qy = startY + 26
+          doc.setFillColor(255,255,255)
+          doc.rect(qx-1, qy-1, sz+2, sz+2, 'F')
+          doc.setFillColor(0,0,0)
+          for (let r=0; r<modules; r++)
+            for (let col=0; col<modules; col++)
+              if (qr.isDark(r, col))
+                doc.rect(qx+col*cs, qy+r*cs, cs, cs, 'F')
+          doc.setFontSize(6)
+          doc.setTextColor(120,120,120)
+          doc.text('Escaneá en el stand', qx+sz/2, qy+sz+4, { align: 'center' })
+        } catch(e) {}
+      }
+      return startY + h + 8
+    }
+
+    items.forEach((item, idx) => {
+      if (idx > 0 && y > 130) { doc.addPage(); y = 15 }
+      y = drawVoucher(item, pids[idx], y)
+    })
+
+    doc.save('Voucher_' + (inv.nombre||'').replace(/ /g,'_') + '_SUCOVI2027.pdf')
   }
 
   function renderEnvios() {

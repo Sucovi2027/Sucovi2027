@@ -5,7 +5,7 @@ import { LOGO } from './logo.js'
  * buildHeader({ title, sub, backHref, backLabel, actions })
  * actions: array de strings HTML de botones/links
  */
-export function buildHeader({ title, sub = '', backHref = '', backLabel = '← Panel', actions = [] } = {}) {
+export function buildHeader({ title, sub = '', backHref = '', backLabel = '← Panel', backStyle = '', actions = [] } = {}) {
   return `
     <div class="hdr">
       <div style="display:flex;align-items:center;gap:8px;min-width:0;flex:1">
@@ -23,7 +23,7 @@ export function buildHeader({ title, sub = '', backHref = '', backLabel = '← P
       </div>
       <div style="display:flex;gap:4px;flex-shrink:0;flex-wrap:nowrap;align-items:center">
         ${actions.join('')}
-        ${backHref ? `<a href="${backHref}" class="btn-back btn" style="font-size:11px;padding:5px 8px;white-space:nowrap">${backLabel}</a>` : ''}
+        ${backHref ? `<a href="${backHref}" class="btn-back btn" style="font-size:11px;padding:5px 8px;white-space:nowrap;${backStyle}">${backLabel}</a>` : ''}
       </div>
     </div>
     <div class="gold"></div>`

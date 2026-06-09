@@ -8,6 +8,7 @@ import { renderBodegaVinos} from './pages/bodegaVinos.js'
 import { renderPuerta }     from './pages/puerta.js'
 import { renderLogistica }  from './pages/logistica.js'
 import { renderAcceso }     from './pages/acceso.js'
+import { renderOrg } from './pages/org.js'
 import { renderRegistro }   from './pages/registro.js'
 import { renderCarrito }    from './pages/carrito.js'
 
@@ -63,8 +64,9 @@ async function route() {
   // /acceso?inv=TOKEN
   if (path === '/acceso') return renderAcceso(app, params.get('inv'))
 
-  // /registro — auto-registro público
-  if (path === '/registro') return renderRegistro(app)
+  if (path === '/org') { renderOrg(app); return }
+  // /registro — deshabilitado
+  if (path === '/registro') { renderOrg(app); return }
 
   if (path === '/caja')      return renderCaja(app)
   if (path === '/puerta')    return renderPuerta(app)

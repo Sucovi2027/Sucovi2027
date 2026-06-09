@@ -23,7 +23,7 @@ export function renderCarrito(app, invitado) {
   let carritoItems = []
 
   app.innerHTML = `
-    ${buildHeader({ title: '🛒 Mi carrito', sub: invitado.nombre + ' ' + invitado.apellido + ' · ' + invitado.codigo, backHref: '/acceso?inv=' + invitado.token, backLabel: '← Mi QR' })}
+    ${buildHeader({ title: '🛒 Mi carrito', sub: invitado.nombre + ' ' + invitado.apellido + ' · ' + invitado.codigo, backHref: '/acceso?inv=' + invitado.token, backLabel: '← Mi QR', backStyle: 'background:#A32D2D;color:#fff;border-color:#A32D2D' })}
     <div style="max-width:480px;margin:0 auto;padding:14px" id="carrito-body">
       <div class="empty">Cargando carrito...</div>
     </div>`
@@ -54,7 +54,7 @@ export function renderCarrito(app, invitado) {
     body.innerHTML = `
       <div style="background:#FFF8F0;border:.5px solid #C9A96E;border-radius:8px;
         padding:9px 12px;font-size:12px;color:#6B4000;margin-bottom:14px">
-        Revisá tu pedido antes de ir a caja. Podés quitar ítems o cambiar la opción de retiro.
+        Revisá tu pedido antes de ir a caja. Podés quitar ítems si es necesario.
       </div>
 
       ${carritoItems.filter(s => s.items?.length).map(stand => `
@@ -88,11 +88,7 @@ export function renderCarrito(app, invitado) {
                 onclick="window._cambiarRetiro('${stand.standDocId}',${stand.standId},'stand')">
                 🍷<br><span style="font-size:11px">Retiro en stand</span>
               </div>
-              <div class="retiro-btn ${stand.retiro === 'envio' ? 'sel' : ''}"
-                id="rb-${stand.standDocId}-envio"
-                onclick="window._cambiarRetiro('${stand.standDocId}',${stand.standId},'envio')">
-                🚚<br><span style="font-size:11px">Envío a domicilio</span>
-              </div>
+
             </div>
           </div>
 
