@@ -92,7 +92,7 @@ export function renderOrg(app) {
         <strong>Panel:</strong> para ver pedidos y marcar entregas con QR.
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:10px">
-        ${BODEGAS.map(b=>`
+        ${BODEGAS.filter(b=>!b.oculto).map(b=>`
           <div class="card" style="text-align:center">
             <div style="font-size:11px;color:#aaa;margin-bottom:2px">Stand #${b.id}</div>
             <div style="font-size:13px;font-weight:600;color:#6B1C1C;margin-bottom:2px">${b.nombre}</div>

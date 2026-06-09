@@ -1,5 +1,5 @@
 // src/pages/caja.js
-import { escucharInvitados, leerCarrito, crearPedidosDesdeCarrito, cobrarStock,
+import { escucharInvitados, leerCarrito, crearPedidosDesdeCarrito, cobrarStock, liberarReservaStock,
          vaciarCarrito, escucharPedidos, cancelarPedido, reembolsarPedido } from '../firebase.js'
 import { injectStyles } from '../styles.js'
 import { buildHeader } from '../header.js'
@@ -395,6 +395,12 @@ export function renderCaja(app) {
 
   window._cancelarCarrito = async () => {
     if (!confirm('¿Cancelar y vaciar el carrito de ' + invSeleccionado.nombre + '?')) return
+    // Liberar reservado en stock
+    for (const stand of carritoInv) {
+      for (const item of (stand.items||[])) {
+        if (item.vinoId) await liberarReservaStock(stand.standId, item.vinoId, item.qty||1).catch(()=>{})
+      }
+    }
     await vaciarCarrito(invSeleccionado.fireId)
     invSeleccionado = null; carritoInv = []
     renderCobrar()

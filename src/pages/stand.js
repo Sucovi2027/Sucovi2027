@@ -36,6 +36,13 @@ export function renderStand(app, bodega, invitado) {
         </button>
         <div id="inv-cod-err" style="font-size:12px;color:#C0392B;margin-bottom:12px"></div>
 
+        <!-- Stock msg modal -->
+        <div id="stand-msg-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
+          background:rgba(0,0,0,.5);z-index:400;align-items:center;justify-content:center">
+          <div id="stand-msg-box" style="background:#fff;border-radius:14px;padding:28px 32px;
+            text-align:center;font-size:18px;font-weight:500;min-width:220px;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+          </div>
+        </div>
         <!-- Scanner overlay -->
         <div id="scan-overlay-stand" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
           background:rgba(26,58,92,.92);z-index:300;flex-direction:column;
@@ -126,6 +133,10 @@ export function renderStand(app, bodega, invitado) {
         Elegí botellas o cajas para llevar — se acumulan en tu carrito y pagás todo junto en caja.
       </div>
 
+      <!-- Stock msg modal -->
+      <div id="stand-msg-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:400;align-items:center;justify-content:center">
+        <div id="stand-msg-box" style="background:#fff;border-radius:14px;padding:32px 40px;text-align:center;font-size:20px;font-weight:600;min-width:240px;box-shadow:0 8px 32px rgba(0,0,0,.25)"></div>
+      </div>
       <div id="menu-lista"><div class="empty">Cargando carta...</div></div>
 
       <!-- Opción de retiro para este stand -->
@@ -170,16 +181,18 @@ export function renderStand(app, bodega, invitado) {
     </button>`
 
   // Escuchar vinos
-  let stockDisponible = {}
+  window._stockDisponible = {}
+  let stockDisponible = window._stockDisponible
   escucharStock(stockDocs => {
     console.log("STOCK DOCS:", stockDocs.length, "bodega:", bodega.id)
     stockDisponible = {}
     stockDocs.filter(s => Number(s.standId) === Number(bodega.id)).forEach(s => {
-      stockDisponible[s.vinoId] = (s.total||0) - (s.degustacion||0) - (s.reservado||0) - (s.pagado||0) - (s.entregado||0)
+      stockDisponible[s.vinoId] = Math.max(0,(s.total||0) - (s.degustacion||0) - (s.reservado||0) - (s.pagado||0) - (s.entregado||0))
     })
+    vinos.forEach((v,vi) => { const el=document.getElementById("disp-"+vi); if(!el) return; const d=stockDisponible[v.fireId||v.id]; if(d!==undefined){el.textContent="("+d+" disp.)";el.style.color=d===0?"#C0392B":d<=3?"#D97706":"#888"} })
   })
 
-  escucharVinos(bodega.id, data => { vinos = data; renderMenu() })
+  escucharVinos(bodega.id, data => { vinos = data; renderMenu(); setTimeout(() => { vinos.forEach((v,vi) => { const el=document.getElementById("disp-"+vi); if(!el) return; const d=stockDisponible[v.fireId||v.id]; if(d!==undefined){el.textContent="("+d+" disp.)";el.style.color=d===0?"#C0392B":d<=3?"#D97706":"#888"} }) }, 300) })
 
   const localQty = {}
 
@@ -249,10 +262,11 @@ export function renderStand(app, bodega, invitado) {
           <div class="qty-row">
             <span class="qty-label">
               ${u.u} — <span style="color:#6B1C1C;font-weight:600">$${fmt(u.p)}</span>
+              <span id="disp-${vi}" style="font-size:11px;margin-left:6px"></span>
             </span>
-            <button class="qty-btn" onclick="window._agregar(${vi},${ui},-1)">−</button>
+            <button class="qty-btn" id="btnm${vi}_${ui}" onclick="window._agregar(${vi},${ui},-1)">−</button>
             <span id="qv${vi}_${ui}" style="font-size:14px;font-weight:500;min-width:20px;text-align:center">0</span>
-            <button class="qty-btn" onclick="window._agregar(${vi},${ui},1)">+</button>
+            <button class="qty-btn" id="btnp${vi}_${ui}" onclick="window._agregar(${vi},${ui},1)">+</button>
           </div>`).join('')}
       </div>`).join('')
   }
@@ -263,14 +277,17 @@ export function renderStand(app, bodega, invitado) {
     const v = vinos[vi]; if (!v) return
     const u = (v.unidades || [])[ui]; if (!u) return
     const key = `${vi}_${ui}`
+    // Disable buttons while processing
+    const btnId = `btn${delta>0?'p':'m'}${vi}_${ui}`
+    const btnEl = document.getElementById(btnId)
+    if (btnEl) { btnEl.disabled = true; btnEl.style.opacity = '0.4' }
     if (delta > 0) {
       const vid = v.fireId||v.id
       const ok = await intentarReservarStock(bodega.id, vid, delta)
       if (!ok) {
-        const msg = document.getElementById("add-msg")
-        msg.textContent = "Sin stock disponible"
-        msg.style.cssText = "font-size:16px;color:#C0392B;text-align:center;padding:8px"
-        setTimeout(() => { msg.textContent = ""; msg.style.cssText = "" }, 2500)
+        window._showStandMsg('Sin stock disponible', '#C0392B')
+        setTimeout(() => window._hideStandMsg(), 1800)
+        if (btnEl) { btnEl.disabled = false; btnEl.style.opacity = '1' }
         return
       }
     }
@@ -288,8 +305,8 @@ export function renderStand(app, bodega, invitado) {
         sub:  u.p * localQty[key],
         vinoNombre: v.nombre, vinoId: v.fireId||v.id||v.nombre, unidad: u.u, precio: u.p, qty: localQty[key]
       }
+      window._showStandMsg('⏳ Guardando...', '#5BA4CF')
       const msg = document.getElementById('add-msg')
-      msg.textContent = '⏳ Guardando...'
       msg.style.cssText = 'font-size:18px;color:#5BA4CF;text-align:center;padding:8px'
       await agregarAlCarrito(invitado.fireId, bodega.id, bodega.nombre, item, retiro)
 
@@ -297,9 +314,11 @@ export function renderStand(app, bodega, invitado) {
       const vid = v.fireId||v.id
       if (stockDisponible[vid] !== undefined) stockDisponible[vid] = Math.max(0, stockDisponible[vid] - delta)
       document.getElementById('retiro-box').style.display = 'block'
-      msg.textContent = '✓ Agregado al carrito'
-      msg.style.cssText = 'font-size:18px;color:#3B6D11;text-align:center;padding:8px'
-      setTimeout(() => { msg.textContent = ''; msg.style.cssText = '' }, 2500)
+      window._showStandMsg('✓ Agregado al carrito', '#3B6D11')
+      if (btnEl) { btnEl.disabled = false; btnEl.style.opacity = '1' }
+      setTimeout(() => window._hideStandMsg(), 1500)
+      msg.textContent = ''
+      msg.style.cssText = ''
     }
   }
 
@@ -374,4 +393,16 @@ window._cerrarScannerStand = () => {
   if (overlay) overlay.style.display = 'none'
   const video = document.getElementById('scan-video-stand')
   if (video && video.srcObject) { video.srcObject.getTracks().forEach(t => t.stop()); video.srcObject = null }
+}
+window._showStandMsg = (txt, color) => {
+  const modal = document.getElementById('stand-msg-modal')
+  const box = document.getElementById('stand-msg-box')
+  if (!modal || !box) return
+  box.textContent = txt
+  box.style.color = color || '#1A3A5C'
+  modal.style.display = 'flex'
+}
+window._hideStandMsg = () => {
+  const modal = document.getElementById('stand-msg-modal')
+  if (modal) modal.style.display = 'none'
 }

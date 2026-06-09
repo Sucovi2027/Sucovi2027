@@ -41,9 +41,11 @@ export const BODEGAS = [
   { id: 16, key: 'a32dd6', nombre: "Bodega Patritti",      region: "Mendoza",           pass: "stand16" },
   { id: 17, key: '175358', nombre: "Rosell Boher",         region: "Mendoza",           pass: "stand17" },
   { id: 18, key: '4a2b00', nombre: "Valle de la Puerta",   region: "La Rioja",          pass: "stand18" },
-  // Reservas:
-  // { id: 19, nombre: "Bodega XIX", region: "...", pass: "stand19" },
-  // { id: 20, nombre: "Bodega XX",  region: "...", pass: "stand20" },
+  { id: 19, key: 'b3c4d5', nombre: "Bertelli",              region: "Buenos Aires",       pass: "stand19" },
+  { id: 20, key: 'e6f7a8', nombre: "Familia Aicardi",       region: "Neuquén",            pass: "stand20" },
+  { id: 21, key: 'b9c0d1', nombre: "Finca Flichman",        region: "Mendoza",            pass: "stand21" },
+  { id: 22, key: 'e2f3a4', nombre: "Don Martino Wines",     region: "Mendoza",            pass: "stand22" },
+  { id: 23, key: 'b5c6d7', nombre: "Séptima",               region: "Mendoza",            pass: "stand23" },
 ]
 
 // ── INVITADOS ─────────────────────────────────────────────────────────────────

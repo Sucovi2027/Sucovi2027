@@ -388,7 +388,7 @@ export function renderAdmin(app) {
         <strong>Carga vinos:</strong> para que cada bodega cargue su carta directamente.
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:10px">
-        ${BODEGAS.map(b=>`
+        ${BODEGAS.filter(b=>!b.oculto).map(b=>`
           <div class="card" style="text-align:center">
             <div style="font-size:11px;color:#aaa;margin-bottom:2px">Stand #${b.id}</div>
             <div style="font-size:13px;font-weight:600;color:#6B1C1C;margin-bottom:2px">${b.nombre}</div>
@@ -530,7 +530,7 @@ export function renderAdmin(app) {
 ${stockData.map((s, idx) => {
               const stats = vinoStats[s.standId + '_' + s.vinoId] || { reservado:0, pagado:0, entregado:0 }
               const bodega = BODEGAS.find(b => Number(b.id) === Number(s.standId))
-              const disponible = (s.total||0) - (s.degustacion||0) - stats.reservado - stats.pagado - stats.entregado
+              const disponible = (s.total||0) - (s.degustacion||0) - (s.reservado||0) - (s.pagado||0) - (s.entregado||0)
               const dispColor = disponible <= 0 ? '#C0392B' : disponible <= 3 ? '#D97706' : '#3A7D44'
               const bg = idx%2===0 ? '#fff' : '#F8FAFC'
               return '<tr style="background:'+bg+';border-bottom:.5px solid #E8EFF5">' +
@@ -538,7 +538,7 @@ ${stockData.map((s, idx) => {
                 '<div style="font-size:11px;color:#888">Stand #'+s.standId+' · '+(bodega?.nombre||'')+'</div></td>' +
                 '<td style="padding:8px;text-align:center;font-weight:500">'+(s.total||0)+'</td>' +
                 '<td style="padding:8px;text-align:center;color:#D97706">'+(s.degustacion||0)+'</td>' +
-                '<td style="padding:8px;text-align:center">'+stats.reservado+'</td>' +
+                '<td style="padding:8px;text-align:center">'+(s.reservado||0)+'</td>' +
                 '<td style="padding:8px;text-align:center">'+stats.pagado+'</td>' +
                 '<td style="padding:8px;text-align:center">'+stats.entregado+'</td>' +
                 '<td style="padding:8px;text-align:center;font-weight:600;color:'+dispColor+'">'+Math.max(0,disponible)+'</td>' +

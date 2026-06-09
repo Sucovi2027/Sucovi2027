@@ -1,6 +1,6 @@
 // src/pages/standPanel.js
 import { buildHeader } from '../header.js'
-import { escucharPedidosPorStand, marcarEntregado, escucharVinos, marcarListoLogistica } from '../firebase.js'
+import { escucharPedidosPorStand, marcarEntregado, escucharVinos, marcarListoLogistica, escucharStock } from '../firebase.js'
 import { injectStyles } from '../styles.js'
 
 const fmt = n => Number(n).toLocaleString('es-AR')
@@ -241,26 +241,34 @@ export function renderStandPanel(app, bodega) {
   window._listoParaLogistica = async (fireId) => { await marcarListoLogistica(fireId) }
 
   // ── Carta ─────────────────────────────────────────────────────────────────
+  let stockPanel = {}
+  escucharStock(docs => {
+    stockPanel = {}
+    docs.filter(s => Number(s.standId) === Number(bodega.id)).forEach(s => {
+      stockPanel[s.vinoId] = Math.max(0, (s.total||0) - (s.degustacion||0) - (s.reservado||0) - (s.pagado||0) - (s.entregado||0))
+    })
+    if (document.getElementById('sp-carta')) renderCarta()
+  })
+
   function renderCarta() {
     const el = document.getElementById('sp-carta'); if (!el) return
     el.innerHTML = '<div class="empty">Cargando...</div>'
     escucharVinos(bodega.id, vinos => {
       if (!vinos.length) { el.innerHTML = '<div class="empty">Sin vinos cargados todavía</div>'; return }
-      el.innerHTML = vinos.map(v => `
-        <div class="card" style="margin-bottom:10px">
-          <div style="font-size:17px;font-weight:600;color:#1A3A5C">${v.nombre}</div>
-          <div style="font-size:14px;color:#666;margin-top:2px">
-            ${v.varietal||''}${v.cosecha?' · '+v.cosecha:''}
-          </div>
-          ${v.descripcion?`<div style="font-size:13px;color:#888;margin-top:3px">${v.descripcion}</div>`:''}
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
-            ${(v.unidades||[]).map(u=>`
-              <span style="background:#EBF4FA;color:#1A3A5C;padding:4px 12px;
-                border-radius:20px;font-size:13px;font-weight:500">
-                ${u.u}: $${fmt(u.p)}
-              </span>`).join('')}
-          </div>
-        </div>`).join('')
+      el.innerHTML = vinos.map(v => {
+        const disp = stockPanel[v.fireId||v.id]
+        const dispHtml = disp !== undefined
+          ? '<span style="font-size:12px;font-weight:500;color:' + (disp===0?'#C0392B':disp<=3?'#D97706':'#3A7D44') + ';margin-left:8px">(' + disp + ' disp.)</span>'
+          : ''
+        return '<div class="card" style="margin-bottom:10px">' +
+          '<div style="font-size:17px;font-weight:600;color:#1A3A5C">' + v.nombre + dispHtml + '</div>' +
+          '<div style="font-size:14px;color:#666;margin-top:2px">' + (v.varietal||'') + (v.cosecha?' · '+v.cosecha:'') + '</div>' +
+          (v.descripcion?'<div style="font-size:13px;color:#888;margin-top:3px">'+v.descripcion+'</div>':'') +
+          '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">' +
+          (v.unidades||[]).map(u =>
+            '<span style="background:#EBF4FA;color:#1A3A5C;padding:4px 12px;border-radius:20px;font-size:13px;font-weight:500">' + u.u + ': $' + fmt(u.p) + '</span>'
+          ).join('') + '</div></div>'
+      }).join('')
     })
   }
 
