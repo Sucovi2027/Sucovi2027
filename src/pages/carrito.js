@@ -82,13 +82,12 @@ export function renderCarrito(app, invitado) {
             <p style="font-size:11px;color:#666;font-weight:500;margin-bottom:6px">
               Retiro de ${stand.standNombre}:
             </p>
-            <div class="retiro-opt">
-              <div class="retiro-btn ${stand.retiro !== 'envio' ? 'sel' : ''}"
-                id="rb-${stand.standDocId}-stand"
-                onclick="window._cambiarRetiro('${stand.standDocId}',${stand.standId},'stand')">
-                🍷<br><span style="font-size:11px">Retiro en stand</span>
+            <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f0f4f8;border-radius:8px;border:1px solid #D6E4F0">
+              <span style="font-size:16px">🍷</span>
+              <div>
+                <div style="font-size:12px;font-weight:600;color:#1A3A5C">Retiro en stand</div>
+                <div style="font-size:11px;color:#888">Pasá a buscar tus vinos al stand de ${stand.standNombre}</div>
               </div>
-
             </div>
           </div>
 
@@ -99,6 +98,12 @@ export function renderCarrito(app, invitado) {
           </div>
         </div>`).join('')}
 
+      <a href="/acceso?inv=${invitado.token}#stands-section"
+        style="display:flex;align-items:center;justify-content:center;gap:8px;
+          background:#1A3A5C;color:#fff;border-radius:8px;
+          padding:12px;font-size:14px;font-weight:500;text-decoration:none;margin-bottom:8px">
+        🛍️ Seguir comprando
+      </a>
       <div class="card" style="margin-bottom:14px">
         <div style="display:flex;justify-content:space-between;font-size:18px;font-weight:500">
           <span>Total</span>

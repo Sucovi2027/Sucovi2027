@@ -22,7 +22,7 @@ const db  = getFirestore(app)
 
 // ── BODEGAS ───────────────────────────────────────────────────────────────────
 export const BODEGAS = [
-  { id: 0, key: '368813',  nombre: "Sucovi",               region: "Pruebas / Bebidas", pass: "stand00" },
+  { id: 0, key: '368813',  nombre: "Sucovi",               region: "Organización", pass: "stand00" },
   { id: 1, key: 'd48429',  nombre: "Alta Vista",           region: "Mendoza",           pass: "stand01" },
   { id: 2, key: 'ba356c',  nombre: "Andillian",            region: "Mendoza",           pass: "stand02" },
   { id: 3, key: '451e62',  nombre: "Ante Nada",            region: "Mendoza",           pass: "stand03" },
@@ -340,4 +340,21 @@ export async function leerTodosLosCarritos(invitadoIds) {
 export async function guardarDisponibleStock(standId, vinoId, disponible) {
   const ref = doc(db, 'stock', standId + '_' + vinoId)
   await setDoc(ref, { disponible: Math.max(0, disponible) }, { merge: true })
+}
+
+export async function buscarInvitadosPorFamilia(familia) {
+  const snap = await getDocs(collection(db, 'invitados'))
+  return snap.docs
+    .map(d => ({ fireId: d.id, ...d.data() }))
+    .filter(i => (i.familia||'').toLowerCase() === familia.toLowerCase())
+}
+
+export async function guardarFamilyToken(familia, token) {
+  await setDoc(doc(db, 'familyLinks', familia.toLowerCase()), { token, familia })
+}
+
+export async function verificarFamilyToken(familia, token) {
+  const snap = await getDoc(doc(db, 'familyLinks', familia.toLowerCase()))
+  if (!snap.exists()) return false
+  return snap.data().token === token
 }

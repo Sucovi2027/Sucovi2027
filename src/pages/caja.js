@@ -292,6 +292,7 @@ export function renderCaja(app) {
         .header { display: flex; justify-content: space-between; margin-bottom: 10px;
           border-bottom: 1px solid #D6E4F0; padding-bottom: 8px; }
         .evento { font-size: 10px; color: #888; letter-spacing: .08em; }
+        .voc-num { font-size: 22px; font-weight: 700; color: #1A3A5C; letter-spacing: .04em; margin-top: 2px; }
         .stand { font-size: 22px; font-weight: 600; color: #1A3A5C; }
         .inv { font-size: 16px; color: #444; }
         .item { display: flex; justify-content: space-between; font-size: 15px;
@@ -313,13 +314,13 @@ export function renderCaja(app) {
         <div class="voucher-body">
           <div class="header">
             <div>
-              <div class="evento">SUCOVI 2027 · VOUCHER DE RETIRO${window._lastPedidosIds && items[idx] ? ' · VOC-'+String((window._lastVoucherNums||[])[idx]||0).padStart(3,'0') : ''}</div>
+              <div class="evento">SUCOVI 2027 · VOUCHER DE RETIRO · Stand #${stand.standId}</div>
+              <div class="voc-num">${window._lastPedidosIds && items[idx] ? 'VOC-'+String((window._lastVoucherNums||[])[idx]||0).padStart(3,'0') : 'VOC-000'}</div>
               <div class="stand">${stand.standNombre}</div>
               <div class="inv">${inv.nombre} ${inv.apellido} · ${inv.codigo}</div>
             </div>
             <div style="text-align:right">
               <div class="badge">✅ PAGADO</div>
-              <div style="font-size:10px;color:#888;margin-top:4px">Stand #${stand.standId}</div>
             </div>
           </div>
           ${(stand.items||[]).map(i => `
@@ -340,7 +341,8 @@ export function renderCaja(app) {
         <div class="voucher-body">
           <div class="header">
             <div>
-              <div class="evento">SUCOVI 2027 · VOUCHER DE RETIRO${window._lastPedidosIds && items[idx] ? ' · VOC-'+String((window._lastVoucherNums||[])[idx]||0).padStart(3,'0') : ''}</div>
+              <div class="evento">SUCOVI 2027 · VOUCHER DE RETIRO · Stand #${stand.standId}</div>
+              <div class="voc-num">${window._lastPedidosIds && items[idx] ? 'VOC-'+String((window._lastVoucherNums||[])[idx]||0).padStart(3,'0') : 'VOC-000'}</div>
               <div class="stand">${stand.standNombre}</div>
               <div class="inv">${inv.nombre} ${inv.apellido} · ${inv.codigo}</div>
             </div>
@@ -492,6 +494,7 @@ export function renderCaja(app) {
                       .reduce((s,p) => s+(p.total||0), 0)
     window._lastCobrado = { inv, items }
     window._lastPedidosIds = peds.filter(p => p.estado === 'pagado').map(p => p.fireId)
+    window._lastVoucherNums = peds.filter(p => p.estado === 'pagado').map(p => p.voucherNum||0)
 
     const colorBorde = { pagado:'#5BA4CF', entregado:'#3A7D44', reembolsado:'#C0392B', cancelado:'#C0392B', listo:'#D97706' }
     const BE = { pagado:'b-pago', listo:'b-list', entregado:'b-entr', reembolsado:'b-canc', cancelado:'b-canc' }
@@ -585,65 +588,73 @@ export function renderCaja(app) {
     const pids = window._lastPedidosIds || []
     let y = 15
 
-    const drawVoucher = (item, pid, startY) => {
-      const h = 80
+    const drawVoucher = (item, pid, voucherNum, startY) => {
+      const itemCount = (item.items||[]).length
+      const h = Math.max(90, 62 + itemCount * 7)
       // Border
       doc.setDrawColor(26, 58, 92)
-      doc.setLineWidth(0.4)
+      doc.setLineWidth(0.5)
       doc.roundedRect(10, startY, 190, h, 3, 3, 'S')
       // Header bar
       doc.setFillColor(26, 58, 92)
-      doc.roundedRect(10, startY, 190, 18, 3, 3, 'F')
-      doc.setFillColor(26, 58, 92)
-      doc.rect(10, startY+12, 190, 6, 'F')
-      // Gold line
-      doc.setFillColor(201, 169, 110)
-      doc.rect(10, startY+18, 190, 1.5, 'F')
+      doc.roundedRect(10, startY, 190, 16, 3, 3, 'F')
+      doc.rect(10, startY+10, 190, 6, 'F')
       // Header text
+      doc.setTextColor(180, 180, 180)
+      doc.setFontSize(7)
+      doc.setFont('helvetica', 'normal')
+      doc.text('SUCOVI 2027  .  VOUCHER DE RETIRO', 15, startY+7)
+      doc.text('Stand #' + item.standId, 195, startY+7, { align: 'right' })
+      // VOC number - grande y prominente
+      const vocStr = voucherNum ? 'VOC-' + String(voucherNum).padStart(3,'0') : 'VOC-000'
       doc.setTextColor(255, 255, 255)
-      doc.setFontSize(11)
+      doc.setFontSize(18)
       doc.setFont('helvetica', 'bold')
-      doc.text('SUCOVI 2027 · VOUCHER DE RETIRO', 15, startY+10)
+      doc.text(vocStr, 15, startY+14)
+      // PAGADO badge en header
+      doc.setFillColor(58, 125, 68)
+      doc.roundedRect(158, startY+9, 38, 8, 2, 2, 'F')
+      doc.setTextColor(255, 255, 255)
       doc.setFontSize(8)
-      doc.setFont('helvetica', 'normal')
-      doc.text('Stand #' + item.standId, 185, startY+10, { align: 'right' })
-      // Body
-      doc.setTextColor(26, 58, 92)
-      doc.setFontSize(13)
       doc.setFont('helvetica', 'bold')
-      doc.text('🍷 ' + item.standNombre, 15, startY+28)
-      doc.setFontSize(10)
+      doc.text('V PAGADO', 177, startY+14.5, { align: 'center' })
+      // Nombre bodega
+      doc.setTextColor(26, 58, 92)
+      doc.setFontSize(14)
+      doc.setFont('helvetica', 'bold')
+      doc.text(item.standNombre, 15, startY+26)
+      // Invitado
+      doc.setFontSize(9)
       doc.setFont('helvetica', 'normal')
-      doc.setTextColor(80, 80, 80)
-      doc.text((inv.nombre||'') + ' ' + (inv.apellido||'') + ' · ' + (inv.codigo||''), 15, startY+36)
+      doc.setTextColor(100, 100, 100)
+      doc.text((inv.nombre||'') + ' ' + (inv.apellido||'') + '  .  ' + (inv.codigo||''), 15, startY+33)
+      // Separador
+      doc.setDrawColor(220, 220, 220)
+      doc.setLineWidth(0.3)
+      doc.line(15, startY+37, 195, startY+37)
       // Items
       let iy = startY+44
       ;(item.items||[]).forEach(i => {
         doc.setFontSize(10)
-        doc.setTextColor(60, 60, 60)
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(50, 50, 50)
         doc.text(i.desc, 15, iy)
         doc.setFont('helvetica', 'bold')
-        doc.text('$' + Number(i.sub).toLocaleString('es-AR'), 195, iy, { align: 'right' })
+        doc.setTextColor(30, 30, 30)
+        doc.text('$' + Number(i.sub).toLocaleString('es-AR'), 145, iy, { align: 'right' })
         doc.setFont('helvetica', 'normal')
         iy += 7
       })
-      // Total
-      doc.setDrawColor(200, 200, 200)
+      // Separador total
+      doc.setDrawColor(180, 180, 180)
       doc.setLineWidth(0.3)
-      doc.line(15, iy, 195, iy)
-      iy += 5
+      doc.line(15, iy, 145, iy)
+      iy += 6
       doc.setFontSize(12)
       doc.setFont('helvetica', 'bold')
       doc.setTextColor(26, 58, 92)
       doc.text('Total', 15, iy)
-      doc.text('$' + Number((item.items||[]).reduce((s,i)=>s+(i.sub||0),0)).toLocaleString('es-AR'), 195, iy, { align: 'right' })
-      // Badge
-      doc.setFillColor(58, 125, 68)
-      doc.roundedRect(130, startY+26, 30, 8, 2, 2, 'F')
-      doc.setTextColor(255,255,255)
-      doc.setFontSize(7)
-      doc.setFont('helvetica', 'bold')
-      doc.text('✅ PAGADO', 145, startY+31.5, { align: 'center' })
+      doc.text('$' + Number((item.items||[]).reduce((s,i)=>s+(i.sub||0),0)).toLocaleString('es-AR'), 145, iy, { align: 'right' })
       // QR
       if (pid && window.qrcode) {
         try {
@@ -651,9 +662,9 @@ export function renderCaja(app) {
           qr.addData(pid)
           qr.make()
           const modules = qr.getModuleCount()
-          const sz = 28
+          const sz = 32
           const cs = sz / modules
-          const qx = 168, qy = startY + 26
+          const qx = 158, qy = startY + 38
           doc.setFillColor(255,255,255)
           doc.rect(qx-1, qy-1, sz+2, sz+2, 'F')
           doc.setFillColor(0,0,0)
@@ -662,6 +673,7 @@ export function renderCaja(app) {
               if (qr.isDark(r, col))
                 doc.rect(qx+col*cs, qy+r*cs, cs, cs, 'F')
           doc.setFontSize(6)
+          doc.setFont('helvetica', 'normal')
           doc.setTextColor(120,120,120)
           doc.text('Escaneá en el stand', qx+sz/2, qy+sz+4, { align: 'center' })
         } catch(e) {}
@@ -671,7 +683,7 @@ export function renderCaja(app) {
 
     items.forEach((item, idx) => {
       if (idx > 0 && y > 130) { doc.addPage(); y = 15 }
-      y = drawVoucher(item, pids[idx], y)
+      y = drawVoucher(item, pids[idx], (window._lastVoucherNums||[])[idx], y)
     })
 
     doc.save('Voucher_' + (inv.nombre||'').replace(/ /g,'_') + '_SUCOVI2027.pdf')

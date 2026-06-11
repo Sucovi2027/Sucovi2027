@@ -141,18 +141,14 @@ export function renderStand(app, bodega, invitado) {
 
       <!-- Opción de retiro para este stand -->
       <div id="retiro-box" style="display:none;margin-top:14px">
-        <p style="font-size:12px;font-weight:500;color:#555;margin-bottom:6px">
-          ¿Cómo retirás de <strong>${bodega.nombre}</strong>?
-        </p>
-        <div class="retiro-opt">
-          <div class="retiro-btn sel" id="rb-stand" onclick="window._sRet('stand')">
-            🍷<br><span style="font-size:11px">Retiro en stand</span>
-          </div>
-  
-        </div>
-
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f0f4f8;border-radius:8px;border:1px solid #D6E4F0">
+          <span style="font-size:18px">🍷</span>
+          <div>
+            <div style="font-size:12px;font-weight:600;color:#1A3A5C">Retiro en stand</div>
+            <div style="font-size:11px;color:#888">Pasá a buscar tus vinos al stand de ${bodega.nombre}</div>
           </div>
         </div>
+      </div>
       </div>
 
       <!-- Resumen de lo que tiene de este stand -->
@@ -166,6 +162,7 @@ export function renderStand(app, bodega, invitado) {
             <a href="${invLink}" style="color:#6B1C1C;text-decoration:underline">
               Ver carrito completo →
             </a>
+          </div>
           </div>
         </div>
       </div>
@@ -249,7 +246,9 @@ export function renderStand(app, bodega, invitado) {
   function renderMenu() {
     const el = document.getElementById('menu-lista'); if (!el) return
     if (!vinos.length) {
-      el.innerHTML = '<div class="empty">La carta estará disponible pronto.</div>'; return
+      el.innerHTML = '<div class="empty">La carta estará disponible pronto.</div>' +
+        '<a href="/acceso?inv=' + invitado.token + '#stands-section" style="display:flex;align-items:center;justify-content:center;gap:8px;background:#1A3A5C;color:#fff;border-radius:8px;padding:12px;font-size:14px;font-weight:500;text-decoration:none;margin-top:12px">🛍️ Seguir comprando</a>'
+      return
     }
     el.innerHTML = vinos.map((v, vi) => `
       <div class="vino-card">
@@ -268,7 +267,8 @@ export function renderStand(app, bodega, invitado) {
             <span id="qv${vi}_${ui}" style="font-size:14px;font-weight:500;min-width:20px;text-align:center">0</span>
             <button class="qty-btn" id="btnp${vi}_${ui}" onclick="window._agregar(${vi},${ui},1)">+</button>
           </div>`).join('')}
-      </div>`).join('')
+      </div>`).join('') +
+    '<a href="/acceso?inv=' + invitado.token + '#stands-section" style="display:flex;align-items:center;justify-content:center;gap:8px;background:#1A3A5C;color:#fff;border-radius:8px;padding:12px;font-size:14px;font-weight:500;text-decoration:none;margin-top:12px">🛍️ Seguir comprando</a>'
   }
 
   // local qty state
@@ -297,7 +297,11 @@ export function renderStand(app, bodega, invitado) {
 
     if (delta < 0) await liberarReservaStock(bodega.id, v.fireId||v.id, 1).catch(()=>{})
     if (localQty[key] === 0) {
+      window._showStandMsg('⏳ Guardando...', '#5BA4CF')
       await eliminarItemCarrito(invitado.fireId, bodega.id, key)
+      window._showStandMsg('✓ Carrito actualizado', '#3B6D11')
+      if (btnEl) { btnEl.disabled = false; btnEl.style.opacity = '1' }
+      setTimeout(() => window._hideStandMsg(), 1500)
     } else {
       const item = {
         key,
@@ -309,12 +313,10 @@ export function renderStand(app, bodega, invitado) {
       const msg = document.getElementById('add-msg')
       msg.style.cssText = 'font-size:18px;color:#5BA4CF;text-align:center;padding:8px'
       await agregarAlCarrito(invitado.fireId, bodega.id, bodega.nombre, item, retiro)
-
-      // Update local stockDisponible immediately
       const vid = v.fireId||v.id
       if (stockDisponible[vid] !== undefined) stockDisponible[vid] = Math.max(0, stockDisponible[vid] - delta)
       document.getElementById('retiro-box').style.display = 'block'
-      window._showStandMsg('✓ Agregado al carrito', '#3B6D11')
+      window._showStandMsg('✓ Carrito actualizado', '#3B6D11')
       if (btnEl) { btnEl.disabled = false; btnEl.style.opacity = '1' }
       setTimeout(() => window._hideStandMsg(), 1500)
       msg.textContent = ''

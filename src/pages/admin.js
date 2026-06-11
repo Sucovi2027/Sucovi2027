@@ -3,7 +3,7 @@ import { LOGO } from '../logo.js'
 import { buildHeader } from '../header.js'
 import { BODEGAS, escucharInvitados, crearInvitado, actualizarInvitado,
          escucharPedidos, guardarVino, eliminarVino, actualizarVino,
-         escucharVinos, limpiarDatosPrueba, escucharStock, actualizarStock, registrarDegustacion, leerTodosLosCarritos } from '../firebase.js'
+         escucharVinos, limpiarDatosPrueba, escucharStock, actualizarStock, registrarDegustacion, leerTodosLosCarritos, guardarFamilyToken } from '../firebase.js'
 import { injectStyles } from '../styles.js'
 
 // ── QR REAL (qrcode-generator) ────────────────────────────────────────────
@@ -513,10 +513,10 @@ export function renderAdmin(app) {
 
     el.innerHTML = `
       <div style="overflow-x:auto">
-        <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <table style="width:100%;border-collapse:collapse;font-size:15px">
           <thead>
             <tr style="background:#1A3A5C;color:#fff">
-              <th style="padding:8px;text-align:left">Stand / Vino</th>
+              <th style="padding:10px;text-align:left">Stand / Vino</th>
               <th style="padding:8px;text-align:center">Stock</th>
               <th style="padding:8px;text-align:center">Degustad.</th>
               <th style="padding:8px;text-align:center">Reservado</th>
@@ -586,6 +586,16 @@ ${stockData.map((s, idx) => {
           </div>`).join('')}
       </div>
       <div class="card" style="max-width:480px;margin-bottom:14px">
+        <p style="font-size:13px;font-weight:500;color:#1A3A5C;margin-bottom:8px">👨‍👩‍👧 Links de familia</p>
+        <p style="font-size:12px;color:#666;margin-bottom:10px">Generá un link seguro para que cada familia vea sus invitados.</p>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <input id="familia-apellido" type="text" placeholder="Apellido de la familia"
+            style="flex:1;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:14px">
+          <button class="btn btn-v" style="padding:8px 14px" onclick="window._generarLinkFamilia()">Generar</button>
+        </div>
+        <div id="familia-result" style="font-size:12px;margin-top:6px"></div>
+      </div>
+      <div class="card" style="max-width:480px;margin-bottom:14px">
         <p style="font-size:13px;font-weight:500;color:#1A3A5C;margin-bottom:8px">🔐 PIN de acceso al admin</p>
         <p style="font-size:12px;color:#666;margin-bottom:10px">PIN actual: 4 digitos numericos. Por defecto: 2027</p>
         <div style="display:flex;gap:8px;margin-bottom:8px">
@@ -607,6 +617,25 @@ ${stockData.map((s, idx) => {
         </button>
         <div id="limpiar-msg" style="margin-top:8px;font-size:12px;text-align:center"></div>
       </div>`
+  }
+
+  window._generarLinkFamilia = async () => {
+    const apellido = document.getElementById('familia-apellido').value.trim()
+    const result = document.getElementById('familia-result')
+    if (!apellido) { result.innerHTML = '<span style="color:#C0392B">Ingresá un apellido</span>'; return }
+    result.innerHTML = '<span style="color:#888">Generando...</span>'
+    const token = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10)
+    try {
+    await guardarFamilyToken(apellido, token)
+    } catch(e) { result.innerHTML = '<span style="color:#C0392B">Error: ' + e.message + '</span>'; return }
+    const link = window.location.origin + '/familia/' + encodeURIComponent(apellido.toLowerCase()) + '?key=' + token
+    result.innerHTML =
+      '<div style="margin-top:6px;padding:8px;background:#f0f4f8;border-radius:6px;word-break:break-all">' +
+        '<div style="font-size:11px;color:#888;margin-bottom:4px">Link para familia ' + apellido + ':</div>' +
+        '<a href="' + link + '" target="_blank" style="color:#1A3A5C;font-size:12px">' + link + '</a>' +
+        '<button onclick="navigator.clipboard.writeText(this.dataset.link).then(()=>this.textContent=\'Copiado!\')" data-link="' + link + '" ' +
+          'style="display:block;margin-top:8px;padding:6px 12px;border-radius:6px;border:1px solid #1A3A5C;background:#fff;color:#1A3A5C;font-size:12px;cursor:pointer;width:100%">Copiar link</button>' +
+      '</div>'
   }
 
   window._cambiarPin = () => {

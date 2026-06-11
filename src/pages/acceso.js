@@ -138,7 +138,7 @@ export async function renderAcceso(app, token) {
       </button>
 
       <!-- Lista de stands -->
-      <p style="font-size:11px;font-weight:500;color:#888;margin-bottom:8px;letter-spacing:.05em">IR A UN STAND</p>
+      <p id="stands-section" style="font-size:11px;font-weight:500;color:#888;margin-bottom:8px;letter-spacing:.05em">IR A UN STAND</p>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px">
         ${standsHTML}
       </div>
@@ -308,7 +308,12 @@ export async function renderAcceso(app, token) {
   }
 
   // ── Recomendador IA ───────────────────────────────────────────────────────
+  let chatHistory = []
+  let systemPromptIA = ''
+
   window._abrirRecomendador = () => {
+    chatHistory = []
+    systemPromptIA = ''
     document.getElementById('modal-ia').style.display = 'flex'
     document.getElementById('ia-respuesta').style.display = 'none'
     document.getElementById('ia-input').value = ''
@@ -317,55 +322,86 @@ export async function renderAcceso(app, token) {
   window._pedirRecomendacion = async () => {
     const pregunta = document.getElementById('ia-input').value.trim()
     if (!pregunta) return
-    const respEl = document.getElementById('ia-respuesta')
-    respEl.style.display = 'block'
-    respEl.innerHTML = '<span style="color:#9333EA">✨ Pensando en los mejores vinos para vos...</span>'
 
-    // Load vinos from all bodegas
-    let todosLosVinos = []
-    let loadedCount = 0
-    await new Promise(resolve => {
-      BODEGAS.forEach(b => {
-        escucharVinos(b.id, vinos => {
-          vinos.forEach(v => todosLosVinos.push({
-            stand: b.id, bodega: b.nombre, region: b.region || '',
-            vino: v.nombre, varietal: v.varietal || '',
-            descripcion: v.descripcion || '',
-            precios: (v.unidades||[]).map(u => u.u + ': $' + Number(u.p).toLocaleString('es-AR')).join(', ')
-          }))
-          loadedCount++
-          if (loadedCount === BODEGAS.length) resolve()
+    const inputEl = document.getElementById('ia-input')
+    const btnEl = document.querySelector('#modal-ia button[onclick*="pedirRecomendacion"]')
+    const respEl = document.getElementById('ia-respuesta')
+
+    // Deshabilitar UI
+    inputEl.disabled = true
+    if (btnEl) { btnEl.disabled = true; btnEl.style.opacity = '0.6' }
+
+    // Agregar mensaje del usuario al historial y limpiar input
+    chatHistory.push({ role: 'user', content: pregunta })
+    inputEl.value = ''
+    respEl.style.display = 'block'
+    respEl.innerHTML = renderChatIA(chatHistory) +
+      '<div id="ia-typing" style="color:#9333EA;margin-top:8px">✨ Pensando...</div>'
+    respEl.scrollTop = respEl.scrollHeight
+
+    // Armar system prompt la primera vez
+    if (!systemPromptIA) {
+      let todosLosVinos = []
+      let loadedCount = 0
+      await new Promise(resolve => {
+        BODEGAS.forEach(b => {
+          escucharVinos(b.id, vinos => {
+            vinos.forEach(v => todosLosVinos.push({
+              stand: b.id, bodega: b.nombre, region: b.region || '',
+              vino: v.nombre, varietal: v.varietal || '',
+              descripcion: v.descripcion || '',
+              precios: (v.unidades||[]).map(u => u.u + ': $' + Number(u.p).toLocaleString('es-AR')).join(', ')
+            }))
+            loadedCount++
+            if (loadedCount === BODEGAS.length) resolve()
+          })
         })
       })
-    })
-
-    const cartaTexto = todosLosVinos.length > 0
-      ? todosLosVinos.map(v =>
-          'Stand #' + v.stand + ' - ' + v.bodega + ' (' + v.region + '): ' + v.vino +
-          (v.varietal ? ' - ' + v.varietal : '') +
-          (v.descripcion ? ' - ' + v.descripcion : '') +
-          ' | ' + v.precios
-        ).join('\n')
-      : 'No hay vinos cargados aún.'
-
-    const prompt = 'Sos un sommelier experto en vinos argentinos en la Feria de Vinos SUCOVI 2027 en Olivos.\n' +
-      'El invitado se llama ' + inv.nombre + '.\n' +
-      'Esta es la carta completa de vinos disponibles esta noche:\n\n' + cartaTexto + '\n\n' +
-      'El invitado dice: "' + pregunta + '"\n\n' +
-      'Recomendá de 2 a 4 vinos específicos de la carta. Para cada uno mencioná el Stand #, la bodega, el vino y por qué lo recomendás. Sé breve, cálido y entusiasta. Respondé en español rioplatense.'
+      const cartaTexto = todosLosVinos.length > 0
+        ? todosLosVinos.map(v =>
+            'Stand #' + v.stand + ' - ' + v.bodega + ' (' + v.region + '): ' + v.vino +
+            (v.varietal ? ' - ' + v.varietal : '') +
+            (v.descripcion ? ' - ' + v.descripcion : '') +
+            ' | ' + v.precios
+          ).join('\n')
+        : 'No hay vinos cargados aún.'
+      systemPromptIA = 'Sos un sommelier experto en vinos argentinos en la Feria de Vinos SUCOVI 2027 en Olivos. ' +
+        'El invitado se llama ' + inv.nombre + '. ' +
+        'Esta es la carta completa de vinos disponibles esta noche:\n\n' + cartaTexto + '\n\n' +
+        'Recomendá vinos específicos de la carta. Para cada uno mencioná el Stand #, la bodega, el vino y por qué lo recomendás. ' +
+        'Mantené el hilo de la conversación. Sé breve, cálido y entusiasta. Respondé siempre en español rioplatense.'
+    }
 
     try {
       const res = await fetch('/api/recommend', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', content: prompt }] })
+        body: JSON.stringify({ system: systemPromptIA, messages: chatHistory })
       })
       const data = await res.json()
       const texto = data.content?.[0]?.text || 'No pude generar una recomendación.'
-      respEl.innerHTML = texto.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      chatHistory.push({ role: 'assistant', content: texto })
+      respEl.innerHTML = renderChatIA(chatHistory)
+      respEl.scrollTop = respEl.scrollHeight
     } catch(e) {
-      respEl.innerHTML = 'Error al conectar con el recomendador. Intentá de nuevo.'
+      chatHistory.pop()
+      respEl.innerHTML = renderChatIA(chatHistory) +
+        '<div style="color:red;margin-top:8px">Error al conectar. Intentá de nuevo.</div>'
+    } finally {
+      inputEl.disabled = false
+      if (btnEl) { btnEl.disabled = false; btnEl.style.opacity = '1' }
+      inputEl.focus()
     }
+  }
+
+  function renderChatIA(history) {
+    return history.map(m => {
+      const isUser = m.role === 'user'
+      const texto = m.content.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      return isUser
+        ? '<div style="text-align:right;margin-bottom:10px"><span style="background:#9333EA;color:#fff;padding:8px 12px;border-radius:16px 16px 4px 16px;display:inline-block;max-width:85%">' + texto + '</span></div>'
+        : '<div style="text-align:left;margin-bottom:10px"><span style="background:#f3e8ff;color:#1a1a1a;padding:8px 12px;border-radius:16px 16px 16px 4px;display:inline-block;max-width:85%">' + texto + '</span></div>'
+    }).join('')
   }
 }
 

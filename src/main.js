@@ -11,6 +11,7 @@ import { renderAcceso }     from './pages/acceso.js'
 import { renderOrg } from './pages/org.js'
 import { renderRegistro }   from './pages/registro.js'
 import { renderCarrito }    from './pages/carrito.js'
+import { renderFamilia }    from './pages/familia.js'
 
 async function route() {
   const base = '/Sucovi2027'
@@ -18,6 +19,13 @@ async function route() {
   const params = new URLSearchParams(window.location.search)
   const app    = document.getElementById('app')
 
+  // /familia/:apellido?key=TOKEN
+  const familiaMatch = path.match(/^\/familia\/([^/]+)$/)
+  if (familiaMatch) {
+    const apellido = decodeURIComponent(familiaMatch[1])
+    const token = params.get('key')
+    return renderFamilia(app, apellido, token)
+  }
   // /stand/:id?inv=TOKEN
   const standMatch = path.match(/^\/stand\/(\d+)$/)
   if (standMatch) {

@@ -88,6 +88,7 @@ export function renderStandPanel(app, bodega) {
       <button class="tab-btn active" id="tab-pedidos" onclick="window._setTab('pedidos')">📋 Pedidos</button>
       <button class="tab-btn" id="tab-carta" onclick="window._setTab('carta')">🍷 Mi carta</button>
       <button class="tab-btn" id="tab-resumen" onclick="window._setTab('resumen')">📊 Resumen</button>
+      <button class="btn btn-b" style="font-size:11px;padding:5px 10px;margin-left:8px" onclick="window._imprimirQRDesdePanel()">🖨️ QR</button>
     </div>
 
     <!-- Tab Pedidos -->
@@ -228,11 +229,38 @@ export function renderStandPanel(app, bodega) {
     try {
       stopVoucherScanner = await iniciarScanner('scan-video-voucher', (raw) => {
         window._cerrarScannerVoucher()
+        const modal = document.getElementById('voucher-modal')
+        const content = document.getElementById('voucher-modal-content')
         if (raw.includes(targetFireId)) {
-          marcarEntregado(targetFireId)
+          content.innerHTML = `
+            <div style="text-align:center;padding:8px 0 16px">
+              <div style="font-size:48px;margin-bottom:8px">✅</div>
+              <div style="font-size:18px;font-weight:700;color:#3A7D44;margin-bottom:4px">QR válido</div>
+              <div style="font-size:14px;color:#555;margin-bottom:20px">¿Confirmás la entrega de este pedido?</div>
+              <div style="display:flex;gap:10px;justify-content:center">
+                <button onclick="document.getElementById('voucher-modal').style.display='none'"
+                  style="padding:10px 20px;border-radius:8px;border:1px solid #ccc;background:#fff;font-size:14px;cursor:pointer">
+                  Cancelar
+                </button>
+                <button onclick="marcarEntregado('${targetFireId}');document.getElementById('voucher-modal').style.display='none'"
+                  style="padding:10px 20px;border-radius:8px;border:none;background:#3A7D44;color:#fff;font-size:14px;font-weight:600;cursor:pointer">
+                  Confirmar entrega
+                </button>
+              </div>
+            </div>`
         } else {
-          if (statusEl) statusEl.textContent = 'QR no corresponde a este remito'
+          content.innerHTML = `
+            <div style="text-align:center;padding:8px 0 16px">
+              <div style="font-size:48px;margin-bottom:8px">❌</div>
+              <div style="font-size:18px;font-weight:700;color:#C0392B;margin-bottom:4px">QR no corresponde</div>
+              <div style="font-size:14px;color:#555;margin-bottom:20px">Este QR no pertenece al remito seleccionado.</div>
+              <button onclick="document.getElementById('voucher-modal').style.display='none'"
+                style="padding:10px 24px;border-radius:8px;border:none;background:#1A3A5C;color:#fff;font-size:14px;font-weight:600;cursor:pointer">
+                Cerrar
+              </button>
+            </div>`
         }
+        modal.style.display = 'flex'
       }, 'scan-status-voucher')
     } catch(e) {
       if (statusEl) statusEl.textContent = 'No se pudo acceder a la cámara.'
@@ -381,4 +409,33 @@ export function renderStandPanel(app, bodega) {
         onclick="document.getElementById('voucher-modal').style.display='none'">Cerrar</button>`
     document.getElementById('voucher-modal').style.display = 'flex'
   }
+}
+
+window._imprimirQRDesdePanel = async () => {
+  const path = window.location.pathname
+  const standId = path.split('/')[2]
+  const base = window.location.origin
+  const url = base + '/stand/' + standId
+  if (!window.qrcode) {
+    await new Promise((res,rej) => {
+      const s = document.createElement('script')
+      s.src = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js'
+      s.onload = res; s.onerror = rej; document.head.appendChild(s)
+    })
+  }
+  const qr = window.qrcode(0, 'M')
+  qr.addData(url); qr.make()
+  const modules = qr.getModuleCount(), sz = 400, cs = sz/modules
+  const canvas = document.createElement('canvas')
+  canvas.width = sz; canvas.height = sz
+  const ctx = canvas.getContext('2d')
+  ctx.fillStyle = '#fff'; ctx.fillRect(0,0,sz,sz)
+  ctx.fillStyle = '#000'
+  for(let r=0;r<modules;r++) for(let col=0;col<modules;col++)
+    if(qr.isDark(r,col)) ctx.fillRect(col*cs,r*cs,cs,cs)
+  const qrDataUrl = canvas.toDataURL('image/png')
+  const win = window.open('', '_blank')
+  const bodNombre = document.querySelector('.header-title')?.textContent || 'Stand'
+  win.document.write('<html><head><title>QR Stand</title><style>body{font-family:system-ui;display:flex;align-items:center;justify-content:center;min-height:100vh}.card{border:3px solid #1A3A5C;border-radius:16px;padding:32px;text-align:center;max-width:400px}img{width:300px;height:300px}@media print{body{min-height:auto}}</style></head><body><div class="card"><div style="font-size:12px;color:#888;margin-bottom:12px">SUCOVI 2027 · VOUCHER DE RETIRO</div><div style="font-size:28px;font-weight:700;color:#1A3A5C;margin-bottom:20px">' + bodNombre + '</div><img src="' + qrDataUrl + '"><div style="font-size:14px;color:#444;margin-top:16px">Escaneá para ver la carta y hacer tu pedido</div></div><script>setTimeout(()=>window.print(),500)<\/script></body></html>')
+  win.document.close()
 }
