@@ -349,6 +349,12 @@ export async function buscarInvitadosPorFamilia(familia) {
     .filter(i => (i.familia||'').toLowerCase() === familia.toLowerCase())
 }
 
+export async function getFamilyToken(familia) {
+  const snap = await getDoc(doc(db, 'familyLinks', familia.toLowerCase()))
+  if (!snap.exists()) return null
+  return snap.data().token
+}
+
 export async function guardarFamilyToken(familia, token) {
   await setDoc(doc(db, 'familyLinks', familia.toLowerCase()), { token, familia })
 }
