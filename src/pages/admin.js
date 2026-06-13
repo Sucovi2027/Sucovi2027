@@ -126,7 +126,7 @@ export function renderAdmin(app) {
         </div>
         <div style="margin-bottom:8px"><label style="font-size:11px;color:#666">WhatsApp</label><input id="edit-tel" style="margin-top:3px"></div>
         <div style="margin-bottom:8px"><label style="font-size:11px;color:#666">Email</label><input id="edit-email" style="margin-top:3px"></div>
-        <div style="margin-bottom:8px"><label style="font-size:11px;color:#666">Familia SUCOVI</label><input id="edit-familia" style="margin-top:3px"></div>
+        <div style="margin-bottom:8px"><label style="font-size:11px;color:#666">Familia SUCOVI</label><select id="edit-familia" style="margin-top:3px;width:100%;padding:6px;border:1px solid #ccc;border-radius:6px"><option value="">— Sin familia —</option><option>Asti Vera</option><option>Bartra Gambini</option><option>Cambiano</option><option>Camoranesi</option><option>Cutri Speranza</option><option>Czaja</option><option>D'Alessandro</option><option>D'Antonio Faraone</option><option>Garay</option><option>Grosskopf Morales</option><option>Pannunzio</option><option>Ponzo</option><option>Porto</option><option>Sabbatini</option><option>Stamadianos Ortiz</option><option>Torres Novoa</option><option>Yanson</option></select></div>
         <div style="margin-bottom:12px"><label style="font-size:11px;color:#666">Comentarios</label><input id="edit-comentarios" style="margin-top:3px"></div>
         <div style="margin-bottom:14px"><label style="font-size:11px;color:#666">Estado</label>
           <select id="edit-estado" style="margin-top:3px">
@@ -249,7 +249,7 @@ export function renderAdmin(app) {
         </div>
         <div style="margin-bottom:8px"><label style="font-size:11px;color:#666">WhatsApp *</label><input id="rt" placeholder="+54 9 11 XXXX-XXXX" style="margin-top:3px"></div>
         <div style="margin-bottom:8px"><label style="font-size:11px;color:#666">Email (opcional)</label><input id="re" type="email" placeholder="juan@gmail.com" style="margin-top:3px"></div>
-        <div style="margin-bottom:8px"><label style="font-size:11px;color:#666">Familia SUCOVI (opcional)</label><input id="rf" placeholder="Ej: Familia García" style="margin-top:3px"></div>
+        <div style="margin-bottom:8px"><label style="font-size:11px;color:#666">Familia SUCOVI</label><select id="rf" style="margin-top:3px;width:100%;padding:6px;border:1px solid #ccc;border-radius:6px"><option value="">— Sin familia —</option><option>Asti Vera</option><option>Bartra Gambini</option><option>Cambiano</option><option>Camoranesi</option><option>Cutri Speranza</option><option>Czaja</option><option>D'Alessandro</option><option>D'Antonio Faraone</option><option>Garay</option><option>Grosskopf Morales</option><option>Pannunzio</option><option>Ponzo</option><option>Porto</option><option>Sabbatini</option><option>Stamadianos Ortiz</option><option>Torres Novoa</option><option>Yanson</option></select></div>
         <div style="margin-bottom:14px"><label style="font-size:11px;color:#666">Comentarios (opcional)</label><input id="rc" placeholder="Alergias, necesidades..." style="margin-top:3px"></div>
         <div style="margin-bottom:14px">
           <label style="font-size:11px;color:#666">Pago</label>
@@ -592,8 +592,26 @@ ${stockData.map((s, idx) => {
         <p style="font-size:13px;font-weight:500;color:#1A3A5C;margin-bottom:8px">👨‍👩‍👧 Links de familia</p>
         <p style="font-size:12px;color:#666;margin-bottom:10px">Generá un link seguro para que cada familia vea sus invitados.</p>
         <div style="display:flex;gap:8px;margin-bottom:8px">
-          <input id="familia-apellido" type="text" placeholder="Apellido de la familia"
-            style="flex:1;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:14px">
+          <select id="familia-apellido" style="flex:1;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:14px">
+            <option value="">— Seleccioná una familia —</option>
+            <option>Asti Vera</option>
+            <option>Bartra Gambini</option>
+            <option>Cambiano</option>
+            <option>Camoranesi</option>
+            <option>Cutri Speranza</option>
+            <option>Czaja</option>
+            <option>D'Alessandro</option>
+            <option>D'Antonio Faraone</option>
+            <option>Garay</option>
+            <option>Grosskopf Morales</option>
+            <option>Pannunzio</option>
+            <option>Ponzo</option>
+            <option>Porto</option>
+            <option>Sabbatini</option>
+            <option>Stamadianos Ortiz</option>
+            <option>Torres Novoa</option>
+            <option>Yanson</option>
+          </select>
           <button class="btn btn-v" style="padding:8px 14px" onclick="window._generarLinkFamilia()">Generar</button>
         </div>
         <div id="familia-result" style="font-size:12px;margin-top:6px"></div>

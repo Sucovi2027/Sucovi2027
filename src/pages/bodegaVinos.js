@@ -47,14 +47,22 @@ export function renderBodegaVinos(app, bodega) {
            ['vc','Cosecha','number','2022'],
            ['vd','Descripción corta','text','Tinto con notas de...'],
            ['vb','Precio botella ($)','number',''],
-           ['v6','Precio caja x6 ($)','number',''],
-           ['v12','Precio caja x12 ($)','number',''],
            ['vs','Stock inicial (botellas) — opcional','number',''],
           ].map(([id,lbl,type,ph]) => `
           <div style="margin-bottom:8px">
             <label style="font-size:11px;color:#666">${lbl}</label>
-            <input id="${id}" type="${type}" placeholder="${ph}" style="margin-top:3px">
+            <input id="${id}" type="${type}" placeholder="${ph}" style="margin-top:3px"
+              ${id==='vb' ? 'oninput="window._calcPrecioCaja()"' : ''}>
           </div>`).join('')}
+        <div style="margin-bottom:8px">
+          <label style="font-size:11px;color:#666">Unidades por caja</label>
+          <input id="vuc" type="number" placeholder="Ej: 6 o 12" style="margin-top:3px"
+            oninput="window._calcPrecioCaja()">
+        </div>
+        <div style="margin-bottom:8px">
+          <label style="font-size:11px;color:#666">Precio por caja ($) — calculado automáticamente</label>
+          <input id="vpc" type="number" readonly style="margin-top:3px;background:#f5f5f5;color:#888">
+        </div>
         <div style="display:flex;gap:8px;margin-top:4px">
           <button class="btn btn-v" style="flex:1;padding:9px" onclick="window._guardarV()">
             Guardar
@@ -104,21 +112,28 @@ export function renderBodegaVinos(app, bodega) {
       </div>`).join('')
   })
 
-  const campos = ['vn','vv','vc','vd','vb','v6','v12']
+  const campos = ['vn','vv','vc','vd','vb','vs','vuc','vpc']
   const limpiar = () => { campos.forEach(id => { const el=document.getElementById(id); if(el) el.value='' }) }
+
+  window._calcPrecioCaja = () => {
+    const bot = parseFloat(document.getElementById('vb').value) || 0
+    const uc  = parseInt(document.getElementById('vuc').value) || 0
+    const vpc = document.getElementById('vpc')
+    if (vpc) vpc.value = (bot && uc) ? (bot * uc) : ''
+  }
 
   window._guardarV = async () => {
     const nombre = document.getElementById('vn').value.trim()
     const m = document.getElementById('vm')
     if (!nombre) { m.innerHTML='<span style="color:#A32D2D">El nombre es requerido.</span>'; return }
     const bot = parseFloat(document.getElementById('vb').value)
-    const c6  = parseFloat(document.getElementById('v6').value)
-    const c12 = parseFloat(document.getElementById('v12').value)
+    const uc  = parseInt(document.getElementById('vuc').value)
+    const pc  = parseFloat(document.getElementById('vpc').value)
     const unidades = []
-    if (bot) unidades.push({ u:'Botella',  p:bot })
-    if (c6)  unidades.push({ u:'Caja x6',  p:c6  })
-    if (c12) unidades.push({ u:'Caja x12', p:c12 })
-    if (!unidades.length) { m.innerHTML='<span style="color:#A32D2D">Ingresá al menos un precio.</span>'; return }
+    if (bot) unidades.push({ u:'Botella', p:bot })
+    if (uc && pc) unidades.push({ u:'Caja x'+uc, p:pc, unidadesPorCaja:uc })
+    if (!unidades.length) { m.innerHTML='<span style="color:#A32D2D">Ingresá al menos precio de botella.</span>'; return }
+    if (uc && !pc) { m.innerHTML='<span style="color:#A32D2D">Ingresá las unidades por caja para calcular el precio.</span>'; return }
     const stockInicial = parseInt(document.getElementById('vs')?.value) || 0
     const data = { nombre, varietal:document.getElementById('vv').value.trim(),
       cosecha:document.getElementById('vc').value.trim(),
@@ -163,11 +178,10 @@ export function renderBodegaVinos(app, bodega) {
     document.getElementById('vc').value = v.cosecha || ''
     document.getElementById('vd').value = v.descripcion || ''
     const bot = (v.unidades||[]).find(u=>u.u==='Botella')
-    const c6  = (v.unidades||[]).find(u=>u.u==='Caja x6')
-    const c12 = (v.unidades||[]).find(u=>u.u==='Caja x12')
-    document.getElementById('vb').value = bot?.p || ''
-    document.getElementById('v6').value = c6?.p  || ''
-    document.getElementById('v12').value= c12?.p  || ''
+    const caja = (v.unidades||[]).find(u=>u.unidadesPorCaja)
+    document.getElementById('vb').value  = bot?.p || ''
+    if(document.getElementById('vuc')) document.getElementById('vuc').value = caja?.unidadesPorCaja || ''
+    if(document.getElementById('vpc')) document.getElementById('vpc').value = caja?.p || ''
     document.getElementById('btn-cancelar-edit').style.display='block'
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
