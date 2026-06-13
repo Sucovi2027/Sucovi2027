@@ -364,3 +364,27 @@ export async function verificarFamilyToken(familia, token) {
   if (!snap.exists()) return false
   return snap.data().token === token
 }
+
+export async function crearPedidoEspecial(data) {
+  // Generar numero PE-XXX
+  const contRef = doc(db, 'config', 'contadores')
+  const contSnap = await getDoc(contRef)
+  const contData = contSnap.exists() ? contSnap.data() : {}
+  const num = (contData.pedidosEspeciales || 0) + 1
+  await setDoc(contRef, { pedidosEspeciales: num }, { merge: true })
+  const peNum = 'PE-' + String(num).padStart(3, '0')
+  const ref = doc(collection(db, 'pedidosEspeciales'))
+  await setDoc(ref, {
+    ...data,
+    peNum,
+    estado: 'pagado',
+    creadoEn: new Date().toISOString()
+  })
+  return { fireId: ref.id, peNum }
+}
+
+export function escucharPedidosEspeciales(callback) {
+  return onSnapshot(collection(db, 'pedidosEspeciales'), snap => {
+    callback(snap.docs.map(d => ({ fireId: d.id, ...d.data() })))
+  })
+}

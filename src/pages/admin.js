@@ -101,6 +101,7 @@ export function renderAdmin(app) {
       <a href="/caja"      class="btn btn-b" style="font-size:11px;padding:5px 9px;text-decoration:none">💰 Caja</a>
       
       <a href="/registro"  class="btn" style="font-size:11px;padding:5px 9px;text-decoration:none;background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)">📝 Registro</a>
+      <a href="/logistica" class="btn" style="font-size:11px;padding:5px 9px;text-decoration:none;background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)">🚚 Logística</a>
     </div>` + `
     <div class="nav">
       <button class="on" onclick="window._aTab('res',this)">📊 Resumen</button>

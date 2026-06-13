@@ -1,6 +1,6 @@
 // src/pages/logistica.js
 import { buildHeader } from '../header.js'
-import { escucharPedidos, retirarDeStand, entregarDomicilio } from '../firebase.js'
+import { escucharPedidos, retirarDeStand, entregarDomicilio, escucharPedidosEspeciales } from '../firebase.js'
 import { injectStyles } from '../styles.js'
 
 const fmt = n => Number(n).toLocaleString('es-AR')
@@ -9,13 +9,29 @@ export function renderLogistica(app) {
   injectStyles()
   let pedidos = [], detalle = null
 
-  app.innerHTML = buildHeader({
-    title: '🚚 Logística — Envíos',
-    sub: 'Pedidos para enviar a domicilio',
-    backHref: '/admin'
-  }) + `<div class="wrap" id="log-body"></div>`
+  let pedidosEspeciales = [], vistaLog = 'envios'
 
-  escucharPedidos(data => { pedidos = data; if (!detalle) renderLista() })
+  app.innerHTML = buildHeader({
+    title: '🚚 Logística',
+    sub: 'Envíos y pedidos especiales',
+    backHref: '/admin'
+  }) + `
+    <div class="nav">
+      <button class="on" onclick="window._logVista('envios',this)">🚚 Envíos</button>
+      <button onclick="window._logVista('especiales',this)">📦 Pedidos especiales</button>
+    </div>
+    <div class="wrap" id="log-body"></div>`
+
+  escucharPedidos(data => { pedidos = data; if (!detalle && vistaLog==='envios') renderLista() })
+  escucharPedidosEspeciales(data => { pedidosEspeciales = data; if (!detalle && vistaLog==='especiales') renderEspeciales() })
+
+  window._logVista = (v, btn) => {
+    vistaLog = v; detalle = null
+    document.querySelectorAll('.nav button').forEach(b => b.classList.remove('on'))
+    btn.classList.add('on')
+    if (v === 'envios') renderLista()
+    else renderEspeciales()
+  }
 
   function renderLista() {
     const el = document.getElementById('log-body'); if (!el) return
@@ -149,5 +165,52 @@ export function renderLogistica(app) {
     window._verDetalleLog(fireId)
   }
 
-  window._volverLog = () => { detalle = null; renderLista() }
+  window._volverLog = () => { detalle = null; if (vistaLog==='envios') renderLista(); else renderEspeciales() }
+
+  function renderEspeciales() {
+    const el = document.getElementById('log-body'); if (!el) return
+    detalle = null
+    if (!pedidosEspeciales.length) {
+      el.innerHTML = '<div class="empty">📦<br><br>Sin pedidos especiales todavía</div>'; return
+    }
+    const pendientes  = pedidosEspeciales.filter(p => p.estado === 'pagado')
+    const entregados  = pedidosEspeciales.filter(p => p.estado === 'entregado')
+
+    const cardPE = (p) =>
+      '<div class="card" style="margin-bottom:10px;border-left:4px solid #5BA4CF">' +
+        '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px">' +
+          '<div>' +
+            '<div style="font-size:14px;font-weight:500;color:#1A3A5C">' + (p.invNombre||'') + '</div>' +
+            '<div style="font-size:11px;color:#888">' + (p.invCodigo||'') + ' · ' + (p.peNum||'') + '</div>' +
+            (p.familia ? '<div style="font-size:11px;color:#5BA4CF;margin-top:2px">Familia ' + p.familia + '</div>' : '') +
+          '</div>' +
+          '<div style="text-align:right">' +
+            '<div style="font-size:14px;font-weight:500">$' + fmt(p.total||0) + '</div>' +
+            '<span class="badge ' + (p.estado==='entregado'?'b-entr':'b-pago') + '" style="font-size:10px">' + (p.estado==='entregado'?'Entregado':'Pendiente') + '</span>' +
+          '</div>' +
+        '</div>' +
+        '<div style="font-size:12px;color:#555;margin-bottom:8px">' +
+          (p.items||[]).map(i => i.desc + ' — $' + fmt(i.sub)).join('<br>') +
+        '</div>' +
+        (p.estado !== 'entregado' ? '<button class="btn btn-g" style="width:100%;padding:8px" onclick="window._entregarPE(\'' + p.fireId + '\')">✅ Confirmar entrega a familia</button>' : '') +
+      '</div>'
+
+    el.innerHTML = ''
+    if (pendientes.length) {
+      el.innerHTML += '<p style="font-size:11px;font-weight:500;color:#D97706;margin-bottom:8px;letter-spacing:.05em">PENDIENTES DE ENTREGA (' + pendientes.length + ')</p>'
+      el.innerHTML += pendientes.map(cardPE).join('')
+    }
+    if (entregados.length) {
+      el.innerHTML += '<p style="font-size:11px;font-weight:500;color:#3A7D44;margin:14px 0 8px;letter-spacing:.05em">ENTREGADOS (' + entregados.length + ')</p>'
+      el.innerHTML += entregados.map(cardPE).join('')
+    }
+  }
+
+  window._entregarPE = async (fireId) => {
+    if (!confirm('¿Confirmás la entrega de este pedido especial?')) return
+    const { doc, updateDoc } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js')
+    const { db } = await import('../firebase.js')
+    await updateDoc(doc(db, 'pedidosEspeciales', fireId), { estado: 'entregado' })
+    renderEspeciales()
+  }
 }

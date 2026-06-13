@@ -1,6 +1,6 @@
 // src/pages/caja.js
-import { escucharInvitados, leerCarrito, crearPedidosDesdeCarrito, cobrarStock, liberarReservaStock,
-         vaciarCarrito, escucharPedidos, cancelarPedido, reembolsarPedido } from '../firebase.js'
+import { BODEGAS, escucharInvitados, leerCarrito, crearPedidosDesdeCarrito, cobrarStock, liberarReservaStock,
+         vaciarCarrito, escucharPedidos, cancelarPedido, reembolsarPedido, escucharVinos, crearPedidoEspecial } from '../firebase.js'
 import { injectStyles } from '../styles.js'
 import { buildHeader } from '../header.js'
 
@@ -31,6 +31,7 @@ export function renderCaja(app) {
     <div class="nav">
       <button class="on" onclick="window._cajaVista('cobrar',this)">💳 Cobrar</button>
       <button onclick="window._cajaVista('pedidos',this)">📋 Pedidos</button>
+      <button onclick="window._cajaVista('especial',this)">📦 Pedido especial</button>
 
     </div>
     <div id="caja-content" class="wrap"></div>
@@ -69,6 +70,7 @@ export function renderCaja(app) {
   function renderVista() {
     if (vista === 'cobrar') renderCobrar()
     if (vista === 'pedidos') renderPedidosPagados()
+    if (vista === 'especial') renderPedidoEspecial()
 
   }
 
@@ -760,6 +762,195 @@ export function renderCaja(app) {
     if (scannerStream) { scannerStream.getTracks().forEach(t => t.stop()); scannerStream = null }
     const overlay = document.getElementById('scan-overlay')
     if (overlay) overlay.style.display = 'none'
+  }
+
+  // ── Pedido Especial ──────────────────────────────────────────────────────
+  let peInv = null, peItems = [], peVinos = {}
+
+  function renderPedidoEspecial() {
+    const el = document.getElementById('caja-content')
+    el.innerHTML = `
+      <div class="wrap" style="max-width:500px;margin:0 auto">
+        <div class="card" style="margin-bottom:12px">
+          <p style="font-size:13px;font-weight:500;color:#1A3A5C;margin-bottom:10px">📦 Pedido especial — Pago en caja</p>
+          <p style="font-size:12px;color:#888;margin-bottom:10px">Buscá el invitado por código o escaneá su QR</p>
+          <div style="display:flex;gap:8px;margin-bottom:8px">
+            <input id="pe-codigo" type="text" placeholder="INV-0001 o apellido"
+              style="flex:1;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:14px;text-transform:uppercase"
+              oninput="this.value=this.value.toUpperCase()">
+            <button class="btn btn-b" style="padding:8px 12px" onclick="window._peBuscar()">Buscar</button>
+            <button class="btn" style="padding:8px 10px" onclick="window._peScanner()">📷</button>
+          </div>
+          <div id="pe-inv-info"></div>
+        </div>
+        <div id="pe-carta" style="display:none">
+          <div class="card" style="margin-bottom:12px">
+            <p style="font-size:13px;font-weight:500;color:#1A3A5C;margin-bottom:10px">Seleccioná los vinos</p>
+            <div id="pe-vinos-lista"></div>
+          </div>
+          <div id="pe-resumen" class="card" style="display:none;margin-bottom:12px"></div>
+          <button id="pe-btn-cobrar" class="btn btn-v" style="width:100%;padding:12px;font-size:15px;display:none"
+            onclick="window._peCobrar()">💳 Cobrar pedido especial</button>
+        </div>
+        <div id="pe-msg" style="text-align:center;font-size:13px;margin-top:8px"></div>
+      </div>`
+    peInv = null; peItems = []
+    cargarVinosPE()
+  }
+
+  async function cargarVinosPE() {
+    peVinos = {}
+    let cargados = 0
+    BODEGAS.forEach(b => {
+      escucharVinos(b.id, vinos => {
+        peVinos[b.id] = { bodega: b, vinos: vinos.filter(v => (v.unidades||[]).some(u => u.unidadesPorCaja)) }
+        cargados++
+        if (cargados === BODEGAS.length) renderVinosPE()
+      })
+    })
+  }
+
+  function renderVinosPE() {
+    const el = document.getElementById('pe-vinos-lista'); if (!el) return
+    const bodegas = Object.values(peVinos).filter(b => b.vinos.length > 0)
+    if (!bodegas.length) { el.innerHTML = '<div class="empty">No hay vinos con precio de caja cargado todavía.</div>'; return }
+    el.innerHTML = bodegas.map(({ bodega, vinos }) =>
+      '<div style="margin-bottom:14px">' +
+        '<div style="font-size:12px;font-weight:600;color:#1A3A5C;margin-bottom:6px;text-transform:uppercase">' + bodega.nombre + '</div>' +
+        vinos.map(v => {
+          const caja = (v.unidades||[]).find(u => u.unidadesPorCaja)
+          if (!caja) return ''
+          return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:.5px solid #eee">' +
+            '<div style="flex:1">' +
+              '<div style="font-size:13px;font-weight:500">' + v.nombre + '</div>' +
+              '<div style="font-size:11px;color:#888">' + (v.varietal||'') + ' · Caja x' + caja.unidadesPorCaja + ' · $' + fmt(caja.p) + '</div>' +
+            '</div>' +
+            '<div style="display:flex;align-items:center;gap:8px">' +
+              '<button class="qty-btn" onclick="window._peQty(' + bodega.id + ',\'' + v.fireId + '\',-1)">−</button>' +
+              '<span id="pe-qty-' + bodega.id + '-' + v.fireId + '" style="min-width:20px;text-align:center;font-size:14px">0</span>' +
+              '<button class="qty-btn" onclick="window._peQty(' + bodega.id + ',\'' + v.fireId + '\',1)">+</button>' +
+            '</div>' +
+          '</div>'
+        }).join('') +
+      '</div>'
+    ).join('')
+  }
+
+  window._peBuscar = () => {
+    const q = document.getElementById('pe-codigo').value.trim().toUpperCase()
+    if (!q) return
+    const el = document.getElementById('pe-inv-info')
+    const encontrados = invitados.filter(i => i.codigo === q || (i.nombre + ' ' + i.apellido).toUpperCase().includes(q))
+    if (!encontrados.length) { el.innerHTML = '<div style="color:#C0392B;font-size:12px">Invitado no encontrado</div>'; return }
+    if (encontrados.length === 1) {
+      window._peSeleccionar(encontrados[0].fireId)
+    } else {
+      el.innerHTML = '<div style="font-size:12px;color:#555;margin-bottom:6px">Seleccioná el invitado:</div>' +
+        encontrados.map(inv =>
+          '<div onclick="window._peSeleccionar(\'' + inv.fireId + '\')" style="background:#f0f4f8;border-radius:8px;padding:10px;font-size:13px;cursor:pointer;margin-bottom:6px;border:1px solid #D6E4F0">' +
+          '<strong>' + inv.nombre + ' ' + inv.apellido + '</strong> · ' + inv.codigo +
+          (inv.familia ? ' · Familia ' + inv.familia : '') +
+          '</div>'
+        ).join('')
+    }
+  }
+
+  window._peSeleccionar = (fireId) => {
+    const inv = invitados.find(i => i.fireId === fireId); if (!inv) return
+    peInv = inv
+    const el = document.getElementById('pe-inv-info')
+    el.innerHTML = '<div style="background:#f0f4f8;border-radius:8px;padding:10px;font-size:13px">' +
+      '<strong>' + inv.nombre + ' ' + inv.apellido + '</strong> · ' + inv.codigo +
+      (inv.familia ? ' · Familia ' + inv.familia : '') +
+      '</div>'
+    document.getElementById('pe-carta').style.display = 'block'
+    renderVinosPE()
+  }
+
+  window._peScanner = async () => {
+    await loadJsQR()
+    const overlay = document.getElementById('scan-overlay')
+    overlay.style.display = 'flex'
+    scannerActive = true
+    try {
+      scannerStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+      const video = document.getElementById('scan-video')
+      video.srcObject = scannerStream
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+      const scan = () => {
+        if (!scannerActive) return
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+          canvas.width = video.videoWidth; canvas.height = video.videoHeight
+          ctx.drawImage(video, 0, 0)
+          const img = ctx.getImageData(0, 0, canvas.width, canvas.height)
+          const code = window.jsQR(img.data, img.width, img.height)
+          if (code) {
+            window._cerrarScanner()
+            const match = code.data.match(/inv=([A-Z0-9]+)/i)
+            if (match) {
+              const inv = invitados.find(i => i.token === match[1])
+              if (inv) { document.getElementById('pe-codigo').value = inv.codigo; window._peBuscar() }
+            }
+          }
+        }
+        requestAnimationFrame(scan)
+      }
+      scan()
+    } catch(e) { document.getElementById('scan-status').textContent = 'No se pudo acceder a la cámara.' }
+  }
+
+  window._peQty = (standId, vinoId, delta) => {
+    const key = standId + '_' + vinoId
+    const idx = peItems.findIndex(i => i.key === key)
+    const bodegaData = peVinos[standId]
+    if (!bodegaData) return
+    const vino = bodegaData.vinos.find(v => (v.fireId||v.id) === vinoId)
+    if (!vino) return
+    const caja = (vino.unidades||[]).find(u => u.unidadesPorCaja)
+    if (!caja) return
+    if (idx >= 0) {
+      peItems[idx].qty = Math.max(0, peItems[idx].qty + delta)
+      if (peItems[idx].qty === 0) peItems.splice(idx, 1)
+    } else if (delta > 0) {
+      peItems.push({ key, standId: Number(standId), standNombre: bodegaData.bodega.nombre,
+        vinoNombre: vino.nombre, vinoId, qty: 1, precioCaja: caja.p,
+        unidadesPorCaja: caja.unidadesPorCaja,
+        desc: vino.nombre + ' — Caja x' + caja.unidadesPorCaja + ' ×1', sub: caja.p })
+    }
+    const qtyEl = document.getElementById('pe-qty-' + standId + '-' + vinoId)
+    const item = peItems.find(i => i.key === key)
+    if (qtyEl) qtyEl.textContent = item ? item.qty : 0
+    if (item) { item.sub = item.precioCaja * item.qty; item.desc = vino.nombre + ' — Caja x' + caja.unidadesPorCaja + ' ×' + item.qty }
+    const resumen = document.getElementById('pe-resumen')
+    const btnCobrar = document.getElementById('pe-btn-cobrar')
+    if (!peItems.length) { resumen.style.display = 'none'; btnCobrar.style.display = 'none'; return }
+    const total = peItems.reduce((s, i) => s + i.sub, 0)
+    resumen.style.display = 'block'; btnCobrar.style.display = 'block'
+    resumen.innerHTML = '<p style="font-size:13px;font-weight:500;color:#1A3A5C;margin-bottom:8px">Resumen</p>' +
+      peItems.map(i => '<div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0;border-bottom:.5px solid #eee"><span>' + i.desc + '</span><strong>$' + fmt(i.sub) + '</strong></div>').join('') +
+      '<div style="display:flex;justify-content:space-between;font-size:16px;font-weight:600;color:#1A3A5C;margin-top:8px"><span>Total</span><span>$' + fmt(total) + '</span></div>'
+  }
+
+  window._peCobrar = async () => {
+    if (!peInv || !peItems.length) return
+    const msg = document.getElementById('pe-msg')
+    const btn = document.getElementById('pe-btn-cobrar')
+    btn.disabled = true; btn.style.opacity = '0.6'
+    msg.innerHTML = '<span style="color:#888">Procesando...</span>'
+    try {
+      const total = peItems.reduce((s, i) => s + i.sub, 0)
+      const { peNum } = await crearPedidoEspecial({
+        invFireId: peInv.fireId, invNombre: peInv.nombre + ' ' + peInv.apellido,
+        invCodigo: peInv.codigo, familia: peInv.familia || '', items: peItems, total
+      })
+      msg.innerHTML = '<span style="color:#3A7D44">✓ Pedido ' + peNum + ' registrado correctamente</span>'
+      peInv = null; peItems = []
+      setTimeout(() => renderPedidoEspecial(), 2000)
+    } catch(e) {
+      msg.innerHTML = '<span style="color:#C0392B">Error: ' + e.message + '</span>'
+      btn.disabled = false; btn.style.opacity = '1'
+    }
   }
 
   renderCobrar()
