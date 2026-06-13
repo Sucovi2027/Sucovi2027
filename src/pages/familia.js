@@ -1,4 +1,4 @@
-import { buscarInvitadosPorFamilia, verificarFamilyToken } from '../firebase.js'
+import { buscarInvitadosPorFamilia, verificarFamilyToken, actualizarInvitado } from '../firebase.js'
 import { buildHeader } from '../header.js'
 import { injectStyles } from '../styles.js'
 
@@ -148,6 +148,7 @@ export async function renderFamilia(app, familia, token) {
                 '<span class="badge ' + (badgeClass[inv.estado]||'') + '" style="margin-top:4px;display:inline-block">' + (badgeLabel[inv.estado]||inv.estado) + '</span>' +
               '</div>' +
               '<div style="display:flex;gap:6px;flex-shrink:0">' +
+                '<button class="btn" style="padding:4px 8px;font-size:11px;color:#185FA5;border-color:#185FA5" onclick="window._editarInvFam(' + idx + ')">✏️</button>' +
                 (waLink ? '<a href="' + waLink + '" target="_blank" class="btn" style="padding:4px 8px;font-size:11px">📱 WA</a>' : '') +
                 '<button class="btn btn-b" style="padding:4px 8px;font-size:11px" onclick="window._dlQR(' + idx + ')">📥 QR</button>' +
                 '<a href="' + link + '" class="btn btn-v" style="padding:4px 8px;font-size:11px">Ver QR</a>' +
@@ -159,6 +160,103 @@ export async function renderFamilia(app, familia, token) {
     '</div>'
 
   window._invitadosFamilia = invitados
+
+  // Botón de ayuda flotante
+  const helpBtn = document.createElement('button')
+  helpBtn.innerHTML = '?'
+  helpBtn.style.cssText = 'position:fixed;bottom:20px;left:20px;width:36px;height:36px;border-radius:50%;background:#1A3A5C;color:#fff;border:none;font-size:18px;font-weight:700;cursor:pointer;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.25)'
+  helpBtn.onclick = () => document.getElementById('modal-ayuda-fam').style.display = 'flex'
+  document.body.appendChild(helpBtn)
+
+  // Modal de ayuda
+  const helpModal = document.createElement('div')
+  helpModal.id = 'modal-ayuda-fam'
+  helpModal.style.cssText = 'display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:300;align-items:center;justify-content:center;padding:16px'
+  helpModal.innerHTML =
+    '<div style="background:#fff;width:100%;max-width:440px;border-radius:12px;padding:20px;max-height:85vh;overflow-y:auto">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">' +
+        '<div style="font-size:16px;font-weight:700;color:#1A3A5C">¿Cómo usar esta página?</div>' +
+        '<button onclick="document.getElementById(\'modal-ayuda-fam\').style.display=\'none\'" style="background:none;border:none;font-size:20px;cursor:pointer;color:#888">×</button>' +
+      '</div>' +
+      '<div style="font-size:13px;color:#333;line-height:1.7">' +
+        '<div style="margin-bottom:14px">' +
+          '<div style="font-weight:600;color:#1A3A5C;margin-bottom:4px">✏️ Editar datos</div>' +
+          '<div>Antes de enviar la invitación, verificá que el <strong>nombre</strong>, <strong>apellido</strong> y <strong>teléfono</strong> de cada invitado sean correctos. Tocá el botón ✏️ para corregirlos.</div>' +
+        '</div>' +
+        '<div style="margin-bottom:14px">' +
+          '<div style="font-weight:600;color:#1A3A5C;margin-bottom:4px">📱 Enviar por WhatsApp</div>' +
+          '<div>Tocá el botón <strong>WA</strong> para abrir WhatsApp con el mensaje de invitación ya redactado. El mensaje incluye el link personal del invitado con su QR. <strong>Verificá los datos antes de enviar.</strong></div>' +
+        '</div>' +
+        '<div style="margin-bottom:14px">' +
+          '<div style="font-weight:600;color:#1A3A5C;margin-bottom:4px">📥 Descargar QR</div>' +
+          '<div>Descargá la imagen del QR personal de cada invitado para compartirla por otro medio si es necesario.</div>' +
+        '</div>' +
+        '<div style="margin-bottom:14px">' +
+          '<div style="font-weight:600;color:#1A3A5C;margin-bottom:4px">👁️ Ver QR</div>' +
+          '<div>Abre la página personal del invitado donde puede ver su QR, sus compras y acceder a los stands el día del evento.</div>' +
+        '</div>' +
+        '<div style="background:#FEF3C7;border-radius:8px;padding:10px;font-size:12px;color:#92400E">' +
+          '⚠️ <strong>Importante:</strong> El link de cada invitado es personal e intransferible. No lo compartas con otras personas.' +
+        '</div>' +
+      '</div>' +
+    '</div>'
+  helpModal.addEventListener('click', e => { if (e.target === helpModal) helpModal.style.display = 'none' })
+  document.body.appendChild(helpModal)
+
+  // Agregar modal de edición al DOM
+  const modalEl = document.createElement('div')
+  modalEl.id = 'modal-edit-fam'
+  modalEl.style.cssText = 'display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.45);z-index:200;align-items:center;justify-content:center;padding:16px'
+  modalEl.innerHTML =
+    '<div style="background:#fff;width:100%;max-width:420px;border-radius:12px;padding:20px">' +
+      '<h3 style="font-size:14px;font-weight:500;color:#1A3A5C;margin-bottom:14px">Editar invitado</h3>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">' +
+        '<div><label style="font-size:11px;color:#666">Nombre</label><input id="fam-edit-nom" style="margin-top:3px;width:100%;padding:6px;border:1px solid #ccc;border-radius:6px"></div>' +
+        '<div><label style="font-size:11px;color:#666">Apellido</label><input id="fam-edit-ape" style="margin-top:3px;width:100%;padding:6px;border:1px solid #ccc;border-radius:6px"></div>' +
+      '</div>' +
+      '<div style="margin-bottom:12px"><label style="font-size:11px;color:#666">WhatsApp</label><input id="fam-edit-tel" style="margin-top:3px;width:100%;padding:6px;border:1px solid #ccc;border-radius:6px"></div>' +
+      '<div style="display:flex;gap:8px">' +
+        '<button onclick="window._guardarEditFam()" style="flex:1;padding:9px;background:#1A3A5C;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer">Guardar</button>' +
+        '<button onclick="window._cerrarEditFam()" style="flex:1;padding:9px;background:#fff;color:#555;border:1px solid #ccc;border-radius:8px;font-size:14px;cursor:pointer">Cancelar</button>' +
+      '</div>' +
+      '<div id="fam-edit-msg" style="margin-top:8px;font-size:12px;text-align:center"></div>' +
+    '</div>'
+  document.body.appendChild(modalEl)
+
+  window._editarInvFam = (idx) => {
+    const inv = window._invitadosFamilia[idx]
+    if (!inv) return
+    window._editIdxFam = idx
+    window._editFireIdFam = inv.fireId
+    document.getElementById('fam-edit-nom').value = inv.nombre || ''
+    document.getElementById('fam-edit-ape').value = inv.apellido || ''
+    document.getElementById('fam-edit-tel').value = inv.tel || ''
+    document.getElementById('fam-edit-msg').innerHTML = ''
+    document.getElementById('modal-edit-fam').style.display = 'flex'
+  }
+
+  window._guardarEditFam = async () => {
+    const m = document.getElementById('fam-edit-msg')
+    const n = document.getElementById('fam-edit-nom').value.trim()
+    const a = document.getElementById('fam-edit-ape').value.trim()
+    const t = document.getElementById('fam-edit-tel').value.trim()
+    if (!n || !a || !t) { m.innerHTML = '<span style="color:#C0392B">Nombre, apellido y WhatsApp son obligatorios.</span>'; return }
+    m.innerHTML = '<span style="color:#888">Guardando...</span>'
+    try {
+      await actualizarInvitado(window._editFireIdFam, { nombre: n, apellido: a, tel: t })
+      // Actualizar localmente
+      window._invitadosFamilia[window._editIdxFam].nombre = n
+      window._invitadosFamilia[window._editIdxFam].apellido = a
+      window._invitadosFamilia[window._editIdxFam].tel = t
+      m.innerHTML = '<span style="color:#3A7D44">✓ Guardado correctamente</span>'
+      setTimeout(() => window._cerrarEditFam(), 1200)
+    } catch(e) { m.innerHTML = '<span style="color:#C0392B">Error: ' + e.message + '</span>' }
+  }
+
+  window._cerrarEditFam = () => {
+    document.getElementById('modal-edit-fam').style.display = 'none'
+  }
+
   window._dlQR = async (idx) => {
     const inv = window._invitadosFamilia[idx]
     if (inv) await descargarQRInvitado(inv)

@@ -221,4 +221,41 @@ export function renderPuerta(app) {
     const overlay = document.getElementById('scan-overlay-puerta')
     if (overlay) overlay.style.display = 'none'
   }
+
+  // Botón de ayuda flotante
+  const helpBtn = document.createElement('button')
+  helpBtn.innerHTML = '?'
+  helpBtn.style.cssText = 'position:fixed;bottom:20px;left:20px;width:36px;height:36px;border-radius:50%;background:#1A3A5C;color:#fff;border:none;font-size:18px;font-weight:700;cursor:pointer;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.25)'
+  helpBtn.onclick = () => document.getElementById('modal-ayuda-puerta').style.display = 'flex'
+  document.body.appendChild(helpBtn)
+
+  const helpModal = document.createElement('div')
+  helpModal.id = 'modal-ayuda-puerta'
+  helpModal.style.cssText = 'display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:300;align-items:center;justify-content:center;padding:16px'
+  helpModal.innerHTML =
+    '<div style="background:#fff;width:100%;max-width:440px;border-radius:12px;padding:20px;max-height:85vh;overflow-y:auto">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">' +
+        '<div style="font-size:16px;font-weight:700;color:#1A3A5C">Control de puerta</div>' +
+        '<button onclick="document.getElementById(&quot;modal-ayuda-puerta&quot;).style.display=&quot;none&quot;" style="background:none;border:none;font-size:20px;cursor:pointer;color:#888">×</button>' +
+      '</div>' +
+      '<div style="font-size:13px;color:#333;line-height:1.7">' +
+        '<div style="margin-bottom:14px">' +
+          '<div style="font-weight:600;color:#1A3A5C;margin-bottom:4px">📷 Escanear QR</div>' +
+          '<div>Escaneá el QR del invitado con la cámara. El sistema verifica automáticamente si el bono está confirmado y registra el ingreso.</div>' +
+        '</div>' +
+        '<div style="margin-bottom:14px">' +
+          '<div style="font-weight:600;color:#1A3A5C;margin-bottom:4px">⌨️ Ingresar código manualmente</div>' +
+          '<div>Si la cámara no funciona, escribí el código del invitado (ej: INV-0001) y tocá <strong>Verificar</strong>.</div>' +
+        '</div>' +
+        '<div style="margin-bottom:14px">' +
+          '<div style="font-weight:600;color:#1A3A5C;margin-bottom:4px">✅ Estados posibles</div>' +
+          '<div><strong>Bono confirmado</strong> — puede ingresar.<br><strong>Pendiente de pago</strong> — puede ingresar y pagar en puerta.<br><strong>Ya ingresó</strong> — QR ya usado, no permitir reingreso.<br><strong>Invalidado</strong> — no permitir ingreso.</div>' +
+        '</div>' +
+        '<div style="background:#FEF3C7;border-radius:8px;padding:10px;font-size:12px;color:#92400E">' +
+          '⚠️ Cada QR es de un solo uso. Si alguien ya ingresó el sistema lo indica claramente.' +
+        '</div>' +
+      '</div>' +
+    '</div>'
+  helpModal.addEventListener('click', e => { if (e.target === helpModal) helpModal.style.display = 'none' })
+  document.body.appendChild(helpModal)
 }

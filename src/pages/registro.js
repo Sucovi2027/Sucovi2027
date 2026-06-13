@@ -99,4 +99,41 @@ export function renderRegistro(app) {
       m.innerHTML = `<span style="color:#A32D2D">Error: ${err.message}</span>`
     }
   }
+
+  // Botón de ayuda flotante
+  const helpBtn = document.createElement('button')
+  helpBtn.innerHTML = '?'
+  helpBtn.style.cssText = 'position:fixed;bottom:20px;left:20px;width:36px;height:36px;border-radius:50%;background:#1A3A5C;color:#fff;border:none;font-size:18px;font-weight:700;cursor:pointer;z-index:999;box-shadow:0 2px 8px rgba(0,0,0,.25)'
+  helpBtn.onclick = () => document.getElementById('modal-ayuda-registro').style.display = 'flex'
+  document.body.appendChild(helpBtn)
+
+  const helpModal = document.createElement('div')
+  helpModal.id = 'modal-ayuda-registro'
+  helpModal.style.cssText = 'display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:300;align-items:center;justify-content:center;padding:16px'
+  helpModal.innerHTML =
+    '<div style="background:#fff;width:100%;max-width:440px;border-radius:12px;padding:20px;max-height:85vh;overflow-y:auto">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">' +
+        '<div style="font-size:16px;font-weight:700;color:#1A3A5C">Registro de invitados</div>' +
+        '<button onclick="document.getElementById(&quot;modal-ayuda-registro&quot;).style.display=&quot;none&quot;" style="background:none;border:none;font-size:20px;cursor:pointer;color:#888">×</button>' +
+      '</div>' +
+      '<div style="font-size:13px;color:#333;line-height:1.7">' +
+        '<div style="margin-bottom:14px">' +
+          '<div style="font-weight:600;color:#1A3A5C;margin-bottom:4px">📝 Registrar nuevo invitado</div>' +
+          '<div>Completá el formulario con el nombre, apellido y teléfono del invitado. El sistema genera automáticamente un código único (INV-XXXX).</div>' +
+        '</div>' +
+        '<div style="margin-bottom:14px">' +
+          '<div style="font-weight:600;color:#1A3A5C;margin-bottom:4px">🍷 Stands disponibles</div>' +
+          '<div>Desde esta página también podés acceder directamente a cada stand de bodega para ver su carta de vinos.</div>' +
+        '</div>' +
+        '<div style="margin-bottom:14px">' +
+          '<div style="font-weight:600;color:#1A3A5C;margin-bottom:4px">📱 Enviar invitación</div>' +
+          '<div>Una vez registrado el invitado, compartile su link personal por WhatsApp para que pueda ver su QR y acceder al evento.</div>' +
+        '</div>' +
+        '<div style="background:#EBF4FA;border-radius:8px;padding:10px;font-size:12px;color:#1A3A5C">' +
+          'ℹ️ El bono de contribución es de $35.000 e incluye degustaciones, copa y empanada de cortesía.' +
+        '</div>' +
+      '</div>' +
+    '</div>'
+  helpModal.addEventListener('click', e => { if (e.target === helpModal) helpModal.style.display = 'none' })
+  document.body.appendChild(helpModal)
 }

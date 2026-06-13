@@ -211,13 +211,99 @@ export function renderStandPanel(app, bodega) {
             font-weight:500;margin-top:8px;color:#1A3A5C">
             <span>Total</span><span>$${fmt(p.total||0)}</span>
           </div>
-          ${!entregado ? `
-            <button class="btn btn-g" style="width:100%;margin-top:10px;padding:9px"
+          <div style="display:flex;gap:6px;margin-top:10px">
+            ${!entregado ? `
+            <button class="btn btn-g" style="flex:1;padding:9px"
               onclick="window._scanearEsteRemito('${p.fireId}')">
-              📷 Este remito
+              📷 Escanear
             </button>` : ''}
+            <button class="btn" style="flex:1;padding:9px"
+              onclick="window._imprimirRemito('${p.fireId}', ${entregado})">
+              🖨️ ${entregado ? 'Remito entregado' : 'Imprimir remito'}
+            </button>
+          </div>
         </div>`
     }).join('')
+  }
+
+  window._imprimirRemito = (fireId, entregado) => {
+    const p = pedidos.find(x => x.fireId === fireId); if (!p) return
+    const fmtN = n => Number(n).toLocaleString('es-AR')
+    const voc = p.voucherNum ? 'VOC-' + String(p.voucherNum).padStart(3,'0') : 'VOC-000'
+    const win = window.open('', '_blank')
+    win.document.write(`<!DOCTYPE html><html><head>
+      <meta charset="utf-8">
+      <title>Remito ${voc}</title>
+      <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"><\/script>
+      <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family: system-ui, sans-serif; padding: 16px; }
+        .voucher { border: 2px solid #1A3A5C; border-radius: 10px; padding: 16px; }
+        .header { display: flex; justify-content: space-between; margin-bottom: 10px;
+          border-bottom: 1px solid #D6E4F0; padding-bottom: 8px; }
+        .evento { font-size: 10px; color: #888; letter-spacing: .08em; }
+        .voc-num { font-size: 22px; font-weight: 700; color: #1A3A5C; margin-top: 2px; }
+        .stand { font-size: 22px; font-weight: 600; color: #1A3A5C; }
+        .inv { font-size: 16px; color: #444; }
+        .item { display: flex; justify-content: space-between; font-size: 15px;
+          padding: 4px 0; border-bottom: .5px solid #eee; }
+        .total { display: flex; justify-content: space-between; font-size: 20px;
+          font-weight: 600; margin-top: 8px; color: #1A3A5C; }
+        .badge { color: #fff; padding: 3px 12px; border-radius: 20px;
+          font-size: 11px; display: inline-block; margin-bottom:6px; }
+        .badge-pagado { background: #3A7D44; }
+        .badge-entregado { background: #1A3A5C; }
+        .sello { text-align:center; margin-top:16px; padding:10px;
+          border: 3px solid #3A7D44; border-radius: 8px; color: #3A7D44;
+          font-size: 22px; font-weight: 700; letter-spacing: .1em; }
+        .qr-box { display:flex;flex-direction:column;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid #D6E4F0; }
+        .qr-hint { font-size:12px;color:#888;text-align:center;margin-top:6px }
+        @media print { body { padding: 0; } }
+      </style>
+    </head><body>
+      <div class="voucher">
+        <div class="header">
+          <div>
+            <div class="evento">SUCOVI 2027 · VOUCHER DE RETIRO · Stand #${bodega.id}</div>
+            <div class="voc-num">${voc}</div>
+            <div class="stand">${bodega.nombre}</div>
+            <div class="inv">${p.invNombre||''} · ${p.invCodigo||''}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="badge ${entregado ? 'badge-entregado' : 'badge-pagado'}">${entregado ? '✅ ENTREGADO' : '✅ PAGADO'}</div>
+          </div>
+        </div>
+        ${(p.items||[]).map(i => `
+          <div class="item"><span>${i.desc}</span><strong>$${fmtN(i.sub)}</strong></div>
+        `).join('')}
+        <div class="total">
+          <span>Total</span>
+          <span>$${fmtN(p.total||0)}</span>
+        </div>
+        ${entregado ? '<div class="sello">✅ ENTREGADO</div>' : `
+        <div class="qr-box">
+          <canvas id="qr-remito"></canvas>
+          <div class="qr-hint">Escaneá en el stand</div>
+        </div>`}
+      </div>
+      <script>
+        const c = document.getElementById('qr-remito')
+        if (c && typeof qrcode !== 'undefined') {
+          const qr = qrcode(0, 'M')
+          qr.addData('${fireId}')
+          qr.make()
+          const mod = qr.getModuleCount(), sz = 200, cs = sz/mod
+          c.width = sz; c.height = sz
+          const ctx = c.getContext('2d')
+          ctx.fillStyle = '#fff'; ctx.fillRect(0,0,sz,sz)
+          ctx.fillStyle = '#000'
+          for(let r=0;r<mod;r++) for(let col=0;col<mod;col++)
+            if(qr.isDark(r,col)) ctx.fillRect(col*cs,r*cs,cs,cs)
+        }
+        setTimeout(() => window.print(), 800)
+      <\/script>
+    </body></html>`)
+    win.document.close()
   }
 
   window._entregarPedido = async (fireId) => { await marcarEntregado(fireId) }
@@ -416,6 +502,7 @@ window._imprimirQRDesdePanel = async () => {
   const standId = path.split('/')[2]
   const base = window.location.origin
   const url = base + '/stand/' + standId
+
   if (!window.qrcode) {
     await new Promise((res,rej) => {
       const s = document.createElement('script')
@@ -423,9 +510,10 @@ window._imprimirQRDesdePanel = async () => {
       s.onload = res; s.onerror = rej; document.head.appendChild(s)
     })
   }
+
   const qr = window.qrcode(0, 'M')
   qr.addData(url); qr.make()
-  const modules = qr.getModuleCount(), sz = 400, cs = sz/modules
+  const modules = qr.getModuleCount(), sz = 300, cs = sz/modules
   const canvas = document.createElement('canvas')
   canvas.width = sz; canvas.height = sz
   const ctx = canvas.getContext('2d')
@@ -434,8 +522,45 @@ window._imprimirQRDesdePanel = async () => {
   for(let r=0;r<modules;r++) for(let col=0;col<modules;col++)
     if(qr.isDark(r,col)) ctx.fillRect(col*cs,r*cs,cs,cs)
   const qrDataUrl = canvas.toDataURL('image/png')
-  const win = window.open('', '_blank')
-  const bodNombre = document.querySelector('.header-title')?.textContent || 'Stand'
-  win.document.write('<html><head><title>QR Stand</title><style>body{font-family:system-ui;display:flex;align-items:center;justify-content:center;min-height:100vh}.card{border:3px solid #1A3A5C;border-radius:16px;padding:32px;text-align:center;max-width:400px}img{width:300px;height:300px}@media print{body{min-height:auto}}</style></head><body><div class="card"><div style="font-size:12px;color:#888;margin-bottom:12px">SUCOVI 2027 · VOUCHER DE RETIRO</div><div style="font-size:28px;font-weight:700;color:#1A3A5C;margin-bottom:20px">' + bodNombre + '</div><img src="' + qrDataUrl + '"><div style="font-size:14px;color:#444;margin-top:16px">Escaneá para ver la carta y hacer tu pedido</div></div><script>setTimeout(()=>window.print(),500)<\/script></body></html>')
-  win.document.close()
+
+  // Mostrar en modal
+  const existingModal = document.getElementById('modal-qr-stand')
+  if (existingModal) existingModal.remove()
+
+  const modal = document.createElement('div')
+  modal.id = 'modal-qr-stand'
+  modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:400;display:flex;align-items:center;justify-content:center;padding:16px'
+
+  const inner = document.createElement('div')
+  inner.style.cssText = 'background:#fff;border-radius:16px;padding:24px;text-align:center;max-width:360px;width:100%'
+
+  const title = document.createElement('div')
+  title.style.cssText = 'font-size:11px;color:#888;letter-spacing:.08em;margin-bottom:6px'
+  title.textContent = 'SUCOVI 2027 · FERIA DE VINOS'
+
+  const nombre = document.createElement('div')
+  nombre.style.cssText = 'font-size:20px;font-weight:700;color:#1A3A5C;margin-bottom:16px'
+  nombre.textContent = document.querySelector('h1')?.textContent || 'Stand'
+
+  const img = document.createElement('img')
+  img.src = qrDataUrl
+  img.style.cssText = 'width:260px;height:260px;border-radius:8px;display:block;margin:0 auto'
+
+  const hint = document.createElement('div')
+  hint.style.cssText = 'font-size:13px;color:#555;margin-top:12px;margin-bottom:16px'
+  hint.textContent = 'Escaneá para ver la carta y hacer tu pedido'
+
+  const closeBtn = document.createElement('button')
+  closeBtn.textContent = 'Cerrar'
+  closeBtn.style.cssText = 'width:100%;padding:10px;border-radius:8px;border:1px solid #ccc;background:#fff;font-size:13px;cursor:pointer'
+  closeBtn.onclick = () => modal.remove()
+
+  inner.appendChild(title)
+  inner.appendChild(nombre)
+  inner.appendChild(img)
+  inner.appendChild(hint)
+  inner.appendChild(closeBtn)
+  modal.appendChild(inner)
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove() })
+  document.body.appendChild(modal)
 }

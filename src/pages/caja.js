@@ -763,4 +763,45 @@ export function renderCaja(app) {
   }
 
   renderCobrar()
+
+  // Botón de ayuda flotante
+  const helpBtn = document.createElement('button')
+  helpBtn.innerHTML = '?'
+  helpBtn.style.cssText = 'position:fixed;bottom:20px;left:20px;width:36px;height:36px;border-radius:50%;background:#1A3A5C;color:#fff;border:none;font-size:18px;font-weight:700;cursor:pointer;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.25)'
+  helpBtn.onclick = () => document.getElementById('modal-ayuda-caja').style.display = 'flex'
+  document.body.appendChild(helpBtn)
+
+  const helpModal = document.createElement('div')
+  helpModal.id = 'modal-ayuda-caja'
+  helpModal.style.cssText = 'display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:300;align-items:center;justify-content:center;padding:16px'
+  helpModal.innerHTML =
+    '<div style="background:#fff;width:100%;max-width:440px;border-radius:12px;padding:20px;max-height:85vh;overflow-y:auto">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">' +
+        '<div style="font-size:16px;font-weight:700;color:#1A3A5C">Panel de caja</div>' +
+        '<button onclick="document.getElementById(&quot;modal-ayuda-caja&quot;).style.display=&quot;none&quot;" style="background:none;border:none;font-size:20px;cursor:pointer;color:#888">×</button>' +
+      '</div>' +
+      '<div style="font-size:13px;color:#333;line-height:1.7">' +
+        '<div style="margin-bottom:14px">' +
+          '<div style="font-weight:600;color:#1A3A5C;margin-bottom:4px">📷 Escanear código del invitado</div>' +
+          '<div>Escaneá el QR o ingresá el código del invitado (ej: INV-0001) para ver su carrito de compras con todos los vinos que seleccionó en los stands.</div>' +
+        '</div>' +
+        '<div style="margin-bottom:14px">' +
+          '<div style="font-weight:600;color:#1A3A5C;margin-bottom:4px">💳 Cobrar</div>' +
+          '<div>Una vez verificado el carrito, tocá <strong>Cobrar</strong> para registrar el pago. Se genera automáticamente un voucher con número correlativo (VOC-001, VOC-002, etc.).</div>' +
+        '</div>' +
+        '<div style="margin-bottom:14px">' +
+          '<div style="font-weight:600;color:#1A3A5C;margin-bottom:4px">⬇️ Descargar PDF</div>' +
+          '<div>Después de cobrar podés descargar el voucher en PDF para entregar al invitado. El voucher incluye el QR para retirar los vinos en cada stand.</div>' +
+        '</div>' +
+        '<div style="margin-bottom:14px">' +
+          '<div style="font-weight:600;color:#1A3A5C;margin-bottom:4px">↩️ Reembolsar</div>' +
+          '<div>Si un pedido fue cobrado por error, podés reembolsarlo desde la lista de pedidos. El stand no podrá marcarlo como entregado.</div>' +
+        '</div>' +
+        '<div style="background:#FEF3C7;border-radius:8px;padding:10px;font-size:12px;color:#92400E">' +
+          '⚠️ Verificá siempre el total antes de cobrar. El reembolso no devuelve dinero automáticamente.' +
+        '</div>' +
+      '</div>' +
+    '</div>'
+  helpModal.addEventListener('click', e => { if (e.target === helpModal) helpModal.style.display = 'none' })
+  document.body.appendChild(helpModal)
 }

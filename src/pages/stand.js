@@ -339,6 +339,47 @@ export function renderStand(app, bodega, invitado) {
     const el = document.getElementById(`qv${vi}_${ui}`)
     if (el) el.textContent = 0
   }
+
+  // Botón de ayuda flotante
+  const helpBtn = document.createElement('button')
+  helpBtn.innerHTML = '?'
+  helpBtn.style.cssText = 'position:fixed;bottom:20px;left:20px;width:36px;height:36px;border-radius:50%;background:#1A3A5C;color:#fff;border:none;font-size:18px;font-weight:700;cursor:pointer;z-index:999;box-shadow:0 2px 8px rgba(0,0,0,.25)'
+  helpBtn.onclick = () => document.getElementById('modal-ayuda-stand').style.display = 'flex'
+  document.body.appendChild(helpBtn)
+
+  const helpModal = document.createElement('div')
+  helpModal.id = 'modal-ayuda-stand'
+  helpModal.style.cssText = 'display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:300;align-items:center;justify-content:center;padding:16px'
+  helpModal.innerHTML =
+    '<div style="background:#fff;width:100%;max-width:440px;border-radius:12px;padding:20px;max-height:85vh;overflow-y:auto">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">' +
+        '<div style="font-size:16px;font-weight:700;color:#1A3A5C">Stand — Carta de vinos</div>' +
+        '<button onclick="document.getElementById(&quot;modal-ayuda-stand&quot;).style.display=&quot;none&quot;" style="background:none;border:none;font-size:20px;cursor:pointer;color:#888">×</button>' +
+      '</div>' +
+      '<div style="font-size:13px;color:#333;line-height:1.7">' +
+        '<div style="margin-bottom:14px">' +
+          '<div style="font-weight:600;color:#1A3A5C;margin-bottom:4px">🍷 Seleccionar vinos</div>' +
+          '<div>Usá los botones <strong>+</strong> y <strong>−</strong> para agregar o quitar unidades de cada vino. El carrito se actualiza automáticamente.</div>' +
+        '</div>' +
+        '<div style="margin-bottom:14px">' +
+          '<div style="font-weight:600;color:#1A3A5C;margin-bottom:4px">🛒 Ver carrito</div>' +
+          '<div>Tocá <strong>Ver carrito</strong> para revisar todo lo que seleccionaste en los distintos stands. Podés seguir agregando vinos de otras bodegas.</div>' +
+        '</div>' +
+        '<div style="margin-bottom:14px">' +
+          '<div style="font-weight:600;color:#1A3A5C;margin-bottom:4px">🛍️ Seguir comprando</div>' +
+          '<div>Tocá <strong>Seguir comprando</strong> para ir a otro stand y seguir eligiendo vinos. Todo se acumula en tu carrito.</div>' +
+        '</div>' +
+        '<div style="margin-bottom:14px">' +
+          '<div style="font-weight:600;color:#1A3A5C;margin-bottom:4px">💳 Pagar</div>' +
+          '<div>Cuando termines de elegir, dirigite a <strong>Caja</strong> para pagar todo junto. El cajero escanea tu código y ve todo tu pedido.</div>' +
+        '</div>' +
+        '<div style="background:#EBF4FA;border-radius:8px;padding:10px;font-size:12px;color:#1A3A5C">' +
+          'ℹ️ Las degustaciones están incluidas en tu bono. Solo pagás las botellas o cajas que llevás.' +
+        '</div>' +
+      '</div>' +
+    '</div>'
+  helpModal.addEventListener('click', e => { if (e.target === helpModal) helpModal.style.display = 'none' })
+  document.body.appendChild(helpModal)
 }
 
 // Scanner global para stand/acceso
