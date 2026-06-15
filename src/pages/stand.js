@@ -257,7 +257,7 @@ export function renderStand(app, bodega, invitado) {
           <span style="font-size:14px;color:#555">${v.varietal || ''}${v.cosecha ? ' · ' + v.cosecha : ''}</span>
         </div>
         ${v.descripcion ? `<div style="font-size:13px;color:#666;margin-top:3px">${v.descripcion}</div>` : ''}
-        ${(v.unidades || []).map((u, ui) => `
+        ${(v.unidades || []).filter(u => !u.unidadesPorCaja).map((u, ui) => `
           <div class="qty-row">
             <span class="qty-label">
               ${u.u} — <span style="color:#6B1C1C;font-weight:600">$${fmt(u.p)}</span>

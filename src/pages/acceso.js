@@ -1,6 +1,6 @@
 // src/pages/acceso.js
 import { buildInvHeader } from '../header.js'
-import { buscarInvitadoPorToken, escucharPedidosPorInvitado, escucharVinos } from '../firebase.js'
+import { buscarInvitadoPorToken, escucharPedidosPorInvitado, escucharVinos, escucharPedidosEspeciales } from '../firebase.js'
 import { BODEGAS } from '../firebase.js'
 import { injectStyles } from '../styles.js'
 
@@ -194,6 +194,10 @@ export async function renderAcceso(app, token) {
   setTimeout(() => drawQR('qr-acc', inv.codigo, 160), 50)
 
   // ── Mis pedidos ───────────────────────────────────────────────────────────
+  let pedidosEspecialesInv = []
+  escucharPedidosEspeciales(all => {
+    pedidosEspecialesInv = all.filter(p => p.invFireId === inv.fireId)
+  })
   escucharPedidosPorInvitado(inv.fireId, peds => {
     misPedidos = peds
     const btn = document.getElementById('btn-mis-pedidos')
@@ -215,12 +219,26 @@ export async function renderAcceso(app, token) {
   async function renderMisPedidos() {
     const sec = document.getElementById('mis-pedidos-sec')
     if (!sec || sec.style.display === 'none') return
-    if (!misPedidos.length) { sec.innerHTML = '<div class="empty">Sin pedidos pagados todavía</div>'; return }
+    const todosLosPeds = [...misPedidos, ...pedidosEspecialesInv]
+    if (!todosLosPeds.length) { sec.innerHTML = '<div class="empty">Sin pedidos pagados todavía</div>'; return }
 
     await loadQRLib()
     const fmt = n => Number(n).toLocaleString('es-AR')
 
-    sec.innerHTML = misPedidos.map(p => {
+    const peHtml = pedidosEspecialesInv.map(p =>
+      '<div style="background:#EBF4FA;border:.5px solid #5BA4CF;border-radius:10px;padding:14px;margin-bottom:10px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px">' +
+          '<div><div style="font-size:14px;font-weight:500;color:#1A3A5C">📦 Pedido especial · ' + (p.peNum||'') + '</div>' +
+          '<div style="font-size:11px;color:#888">' + (p.estado==='listo'?'🚚 En preparación para envío':'⏳ Pendiente') + '</div></div>' +
+          '<span style="font-size:11px;font-weight:500;color:#5BA4CF">Pedido especial</span>' +
+        '</div>' +
+        (p.items||[]).map(i => '<div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0;border-bottom:.5px solid rgba(0,0,0,.08);color:#555"><span>' + i.desc + '</span><strong>$' + fmt(i.sub) + '</strong></div>').join('') +
+        '<div style="display:flex;justify-content:space-between;font-size:14px;font-weight:500;margin-top:8px;color:#1A3A5C"><span>Total</span><span>$' + fmt(p.total||0) + '</span></div>' +
+        (p.envio ? '<div style="font-size:12px;color:#185FA5;margin-top:8px">📍 Entrega: ' + p.envio.calle + ' ' + p.envio.numero + ', ' + p.envio.localidad + '</div>' : '') +
+      '</div>'
+    ).join('')
+
+    sec.innerHTML = peHtml + misPedidos.map(p => {
       const esEnvio = p.retiro === 'envio'
       const entregado = p.estado === 'entregado'
       const reembolsado = p.estado === 'reembolsado' || p.estado === 'cancelado'

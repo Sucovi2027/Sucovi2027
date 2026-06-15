@@ -1,6 +1,6 @@
 // src/pages/caja.js
 import { BODEGAS, escucharInvitados, leerCarrito, crearPedidosDesdeCarrito, cobrarStock, liberarReservaStock,
-         vaciarCarrito, escucharPedidos, cancelarPedido, reembolsarPedido, escucharVinos, crearPedidoEspecial } from '../firebase.js'
+         vaciarCarrito, escucharPedidos, cancelarPedido, reembolsarPedido, escucharVinos, crearPedidoEspecial, actualizarPedidoEspecial, escucharPedidosEspeciales } from '../firebase.js'
 import { injectStyles } from '../styles.js'
 import { buildHeader } from '../header.js'
 
@@ -796,6 +796,55 @@ export function renderCaja(app) {
       </div>`
     peInv = null; peItems = []
     cargarVinosPE()
+    // Historial al pie
+    setTimeout(() => {
+      const el = document.getElementById('caja-content')
+      if (!el) return
+      const hist = document.createElement('div')
+      hist.id = 'pe-hist-lista'
+      hist.style.cssText = 'max-width:500px;margin:12px auto 0'
+      el.appendChild(hist)
+      escucharPedidosEspeciales(data => {
+        const el2 = document.getElementById('pe-hist-lista'); if (!el2) return
+        if (!data.length) return
+        const sorted = [...data].sort((a,b) => (b.creadoEn||'').localeCompare(a.creadoEn||''))
+        el2.innerHTML = '<p style="font-size:11px;font-weight:500;color:#888;margin-bottom:8px;letter-spacing:.05em">PEDIDOS ESPECIALES COBRADOS HOY</p>' +
+          sorted.map(p =>
+            '<div class="card" style="margin-bottom:8px;border-left:3px solid #5BA4CF;cursor:pointer" onclick="window._peVerDetalle(&quot;' + p.fireId + '&quot;)">' +
+              '<div style="display:flex;justify-content:space-between;align-items:start">' +
+                '<div><div style="font-size:13px;font-weight:600;color:#1A3A5C">' + (p.peNum||'') + ' · ' + (p.invNombre||'') + '</div>' +
+                '<div style="font-size:11px;color:#888">' + (p.invCodigo||'') + (p.familia ? ' · Familia ' + p.familia : '') + '</div>' +
+                '<div style="font-size:12px;color:#555;margin-top:4px">' + (p.items||[]).map(i => i.desc).join(', ') + '</div></div>' +
+                '<div style="text-align:right;flex-shrink:0;margin-left:8px"><div style="font-size:14px;font-weight:600">$' + fmt(p.total||0) + '</div>' +
+                '<span class="badge ' + (p.estado==='entregado'?'b-entr':'b-pago') + '" style="font-size:10px">' + (p.estado==='entregado'?'Entregado':'Pendiente') + '</span>' +
+                '<div style="font-size:10px;color:#888;margin-top:2px">Ver detalle ›</div></div>' +
+              '</div>' +
+            '</div>'
+          ).join('')
+        window._peVerDetalle = (fireId) => {
+          const p = sorted.find(x => x.fireId === fireId); if (!p) return
+          peUltimo = p
+          const fmtN = n => Number(n).toLocaleString('es-AR')
+          const el3 = document.getElementById('caja-content'); if (!el3) return
+          const dir = p.envio
+          el3.innerHTML = '<div class="wrap" style="max-width:500px;margin:0 auto">' +
+            '<button class="btn" onclick="window._cajaVista(&quot;especial&quot;, document.querySelector(&quot;.nav button:nth-child(3)&quot;))" style="margin-bottom:12px">← Volver</button>' +
+            '<div class="card" style="margin-bottom:12px;border-left:4px solid #5BA4CF">' +
+              '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px">' +
+                '<div><div style="font-size:18px;font-weight:700;color:#1A3A5C">' + (p.peNum||'') + '</div>' +
+                '<div style="font-size:14px;font-weight:500">' + (p.invNombre||'') + '</div>' +
+                '<div style="font-size:12px;color:#888">' + (p.invCodigo||'') + (p.familia ? ' · Familia ' + p.familia : '') + '</div></div>' +
+                '<span class="badge ' + (p.estado==='entregado'?'b-entr':'b-pago') + '">' + (p.estado==='entregado'?'Entregado':'Pendiente') + '</span>' +
+              '</div>' +
+              (p.items||[]).map(i => '<div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0;border-bottom:.5px solid #eee"><span>' + i.desc + '</span><strong>$' + fmtN(i.sub) + '</strong></div>').join('') +
+              '<div style="display:flex;justify-content:space-between;font-size:16px;font-weight:600;color:#1A3A5C;margin-top:8px"><span>Total</span><span>$' + fmtN(p.total||0) + '</span></div>' +
+            '</div>' +
+            (dir ? '<div class="card" style="margin-bottom:12px;background:#f0f4f8"><p style="font-size:11px;font-weight:500;color:#888;margin-bottom:6px">DATOS DE ENTREGA</p><div style="font-size:13px"><strong>' + dir.nombre + '</strong> · ' + dir.tel + '<br>' + dir.calle + ' ' + dir.numero + (dir.piso?', '+dir.piso:'') + ', ' + dir.localidad + ', ' + dir.provincia + '</div></div>' : '') +
+            '<button class="btn btn-b" style="width:100%;padding:12px;font-size:14px" onclick="window._peImprimirVoucher()">🖨️ Imprimir voucher</button>' +
+          '</div>'
+        }
+      })
+    }, 300)
   }
 
   async function cargarVinosPE() {
@@ -814,13 +863,14 @@ export function renderCaja(app) {
     const el = document.getElementById('pe-vinos-lista'); if (!el) return
     const bodegas = Object.values(peVinos).filter(b => b.vinos.length > 0)
     if (!bodegas.length) { el.innerHTML = '<div class="empty">No hay vinos con precio de caja cargado todavía.</div>'; return }
-    el.innerHTML = bodegas.map(({ bodega, vinos }) =>
+    el.innerHTML = '<div style="margin-bottom:12px"><input id="pe-buscar-vino" type="text" placeholder="Buscar vino..." style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:14px" oninput="window._peFiltrarVinos()"></div>' +
+      bodegas.map(({ bodega, vinos }) =>
       '<div style="margin-bottom:14px">' +
-        '<div style="font-size:12px;font-weight:600;color:#1A3A5C;margin-bottom:6px;text-transform:uppercase">' + bodega.nombre + '</div>' +
+        '<div class="pe-bodega-bloque"><div class="pe-bodega-titulo" style="font-size:12px;font-weight:600;color:#1A3A5C;margin-bottom:6px;text-transform:uppercase">' + bodega.nombre + '</div>' +
         vinos.map(v => {
           const caja = (v.unidades||[]).find(u => u.unidadesPorCaja)
           if (!caja) return ''
-          return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:.5px solid #eee">' +
+          return '<div class="pe-vino-wrap" data-nombre="' + v.nombre.toLowerCase() + '"><div class="pe-vino-row" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:.5px solid #eee">' +
             '<div style="flex:1">' +
               '<div style="font-size:13px;font-weight:500">' + v.nombre + '</div>' +
               '<div style="font-size:11px;color:#888">' + (v.varietal||'') + ' · Caja x' + caja.unidadesPorCaja + ' · $' + fmt(caja.p) + '</div>' +
@@ -830,10 +880,21 @@ export function renderCaja(app) {
               '<span id="pe-qty-' + bodega.id + '-' + v.fireId + '" style="min-width:20px;text-align:center;font-size:14px">0</span>' +
               '<button class="qty-btn" onclick="window._peQty(' + bodega.id + ',\'' + v.fireId + '\',1)">+</button>' +
             '</div>' +
-          '</div>'
+          '</div></div>'
         }).join('') +
       '</div>'
     ).join('')
+  }
+
+  window._peFiltrarVinos = () => {
+    const q = (document.getElementById('pe-buscar-vino')?.value || '').toLowerCase()
+    document.querySelectorAll('#pe-vinos-lista .pe-vino-wrap').forEach(wrap => {
+      wrap.style.display = wrap.dataset.nombre.toLowerCase().includes(q) ? '' : 'none'
+    })
+    document.querySelectorAll('#pe-vinos-lista .pe-bodega-bloque').forEach(bloque => {
+      const visible = [...bloque.querySelectorAll('.pe-vino-wrap')].some(w => w.style.display !== 'none')
+      bloque.style.display = visible ? '' : 'none'
+    })
   }
 
   window._peBuscar = () => {
@@ -932,6 +993,8 @@ export function renderCaja(app) {
       '<div style="display:flex;justify-content:space-between;font-size:16px;font-weight:600;color:#1A3A5C;margin-top:8px"><span>Total</span><span>$' + fmt(total) + '</span></div>'
   }
 
+  let peUltimo = null
+
   window._peCobrar = async () => {
     if (!peInv || !peItems.length) return
     const msg = document.getElementById('pe-msg')
@@ -940,17 +1003,155 @@ export function renderCaja(app) {
     msg.innerHTML = '<span style="color:#888">Procesando...</span>'
     try {
       const total = peItems.reduce((s, i) => s + i.sub, 0)
-      const { peNum } = await crearPedidoEspecial({
+      const result = await crearPedidoEspecial({
         invFireId: peInv.fireId, invNombre: peInv.nombre + ' ' + peInv.apellido,
         invCodigo: peInv.codigo, familia: peInv.familia || '', items: peItems, total
       })
-      msg.innerHTML = '<span style="color:#3A7D44">✓ Pedido ' + peNum + ' registrado correctamente</span>'
+      peUltimo = { ...result, invNombre: peInv.nombre + ' ' + peInv.apellido,
+        invCodigo: peInv.codigo, familia: peInv.familia || '', items: [...peItems], total }
       peInv = null; peItems = []
-      setTimeout(() => renderPedidoEspecial(), 2000)
+      renderPEDireccion()
     } catch(e) {
       msg.innerHTML = '<span style="color:#C0392B">Error: ' + e.message + '</span>'
       btn.disabled = false; btn.style.opacity = '1'
     }
+  }
+
+  function renderPEDireccion() {
+    const el = document.getElementById('caja-content')
+    el.innerHTML = `
+      <div class="wrap" style="max-width:500px;margin:0 auto">
+        <div class="card" style="margin-bottom:12px;border-left:4px solid #3A7D44">
+          <div style="font-size:15px;font-weight:600;color:#3A7D44;margin-bottom:4px">✅ ${peUltimo.peNum} registrado</div>
+          <div style="font-size:13px;color:#555">${peUltimo.invNombre} · $${fmt(peUltimo.total)}</div>
+        </div>
+        <div class="card" style="margin-bottom:12px">
+          <p style="font-size:13px;font-weight:500;color:#1A3A5C;margin-bottom:10px">📍 Datos de entrega</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+            <div><label style="font-size:11px;color:#666">Nombre destinatario</label><input id="pe-dir-nombre" style="margin-top:3px" placeholder="Nombre completo"></div>
+            <div><label style="font-size:11px;color:#666">Teléfono</label><input id="pe-dir-tel" style="margin-top:3px" placeholder="+54 9 11..."></div>
+          </div>
+          <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-bottom:8px">
+            <div><label style="font-size:11px;color:#666">Calle</label><input id="pe-dir-calle" style="margin-top:3px"></div>
+            <div><label style="font-size:11px;color:#666">Número</label><input id="pe-dir-num" style="margin-top:3px"></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+            <div><label style="font-size:11px;color:#666">Piso / Dpto</label><input id="pe-dir-piso" style="margin-top:3px"></div>
+            <div><label style="font-size:11px;color:#666">Localidad</label><input id="pe-dir-loc" style="margin-top:3px"></div>
+          </div>
+          <div style="margin-bottom:8px"><label style="font-size:11px;color:#666">Provincia</label><input id="pe-dir-prov" style="margin-top:3px" value="Buenos Aires"></div>
+          <div style="margin-bottom:12px"><label style="font-size:11px;color:#666">Observaciones</label><input id="pe-dir-obs" style="margin-top:3px" placeholder="Ej: dejar en portería"></div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-v" style="flex:1;padding:10px" onclick="window._peGuardarDir()">Guardar dirección e imprimir</button>
+            <button class="btn" style="padding:10px" onclick="window._peSaltarDir()">Saltar</button>
+          </div>
+          <div id="pe-dir-msg" style="margin-top:8px;font-size:12px;text-align:center"></div>
+        </div>
+      </div>`
+  }
+
+  window._peGuardarDir = async () => {
+    const dir = {
+      nombre: document.getElementById('pe-dir-nombre').value.trim(),
+      tel: document.getElementById('pe-dir-tel').value.trim(),
+      calle: document.getElementById('pe-dir-calle').value.trim(),
+      numero: document.getElementById('pe-dir-num').value.trim(),
+      piso: document.getElementById('pe-dir-piso').value.trim(),
+      localidad: document.getElementById('pe-dir-loc').value.trim(),
+      provincia: document.getElementById('pe-dir-prov').value.trim(),
+      observaciones: document.getElementById('pe-dir-obs')?.value.trim() || ''
+    }
+    const msg = document.getElementById('pe-dir-msg')
+    if (!dir.nombre || !dir.calle || !dir.localidad) {
+      msg.innerHTML = '<span style="color:#C0392B">Completá al menos nombre, calle y localidad.</span>'; return
+    }
+    msg.innerHTML = '<span style="color:#888">Guardando...</span>'
+    await actualizarPedidoEspecial(peUltimo.fireId, { envio: dir })
+    peUltimo.envio = dir
+    window._peImprimirVoucher()
+  }
+
+  window._peSaltarDir = () => { window._peImprimirVoucher() }
+
+  window._peImprimirVoucher = () => {
+    const p = peUltimo; if (!p) return
+    const win = window.open('', '_blank')
+    const fmtN = n => Number(n).toLocaleString('es-AR')
+    const dir = p.envio
+    win.document.write(`<!DOCTYPE html><html><head>
+      <meta charset="utf-8"><title>${p.peNum}</title>
+      <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family: system-ui, sans-serif; padding: 16px; }
+        .voucher { border: 2px solid #1A3A5C; border-radius: 10px; padding: 16px; margin-bottom: 16px; page-break-inside: avoid; }
+        .header { display: flex; justify-content: space-between; margin-bottom: 10px; border-bottom: 1px solid #D6E4F0; padding-bottom: 8px; }
+        .evento { font-size: 10px; color: #888; letter-spacing: .08em; }
+        .pe-num { font-size: 22px; font-weight: 700; color: #1A3A5C; margin-top: 2px; }
+        .item { display: flex; justify-content: space-between; font-size: 15px; padding: 4px 0; border-bottom: .5px solid #eee; }
+        .total { display: flex; justify-content: space-between; font-size: 20px; font-weight: 600; margin-top: 8px; color: #1A3A5C; }
+        .badge { background: #1A3A5C; color: #fff; padding: 3px 12px; border-radius: 20px; font-size: 11px; display: inline-block; }
+        .dir-box { background: #f0f4f8; border-radius: 8px; padding: 10px; margin-top: 12px; font-size: 13px; }
+        .sello { text-align:center; margin-top:16px; padding:10px; border: 3px solid #5BA4CF; border-radius: 8px; color: #5BA4CF; font-size: 20px; font-weight: 700; letter-spacing: .1em; }
+        @media print { body { padding: 0; } }
+      </style>
+    </head><body>
+      <div class="voucher">
+        <div class="header">
+          <div>
+            <div class="evento">SUCOVI 2027 · PEDIDO ESPECIAL</div>
+            <div class="pe-num">${p.peNum}</div>
+            <div style="font-size:16px;font-weight:500;color:#1A3A5C;margin-top:4px">${p.invNombre}</div>
+            <div style="font-size:13px;color:#888">${p.invCodigo}${p.familia ? ' · Familia ' + p.familia : ''}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="badge">✅ PAGADO</div>
+          </div>
+        </div>
+        ${(p.items||[]).map(i => '<div class="item"><span>' + i.desc + '</span><strong>$' + fmtN(i.sub) + '</strong></div>').join('')}
+        <div class="total"><span>Total</span><span>$${fmtN(p.total)}</span></div>
+        ${dir ? '<div class="dir-box"><strong>📍 Entrega:</strong> ' + dir.nombre + ' · ' + dir.tel + '<br>' + dir.calle + ' ' + dir.numero + (dir.piso ? ', ' + dir.piso : '') + ', ' + dir.localidad + ', ' + dir.provincia + '</div>' : ''}
+        <div class="sello">📦 PEDIDO ESPECIAL — SIN QR</div>
+      </div>
+      <script>setTimeout(() => window.print(), 500)<\/script>
+    </body></html>`)
+    win.document.close()
+    setTimeout(() => renderPEHistorial(), 1000)
+  }
+
+  function renderPEHistorial() {
+    const el = document.getElementById('caja-content')
+    el.innerHTML = `
+      <div class="wrap" style="max-width:500px;margin:0 auto">
+        <div class="card" style="margin-bottom:12px;border-left:4px solid #3A7D44">
+          <div style="font-size:13px;font-weight:600;color:#3A7D44">✅ ${peUltimo?.peNum} guardado</div>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:14px">
+          <button class="btn btn-v" style="flex:1;padding:10px" onclick="window._cajaVista('especial', document.querySelector('.nav button:nth-child(3)'))">+ Nuevo pedido especial</button>
+          <button class="btn" style="flex:1;padding:10px" onclick="window._peImprimirVoucher()">🖨️ Reimprimir</button>
+        </div>
+        <div id="pe-historial-lista"><div class="empty">Cargando historial...</div></div>
+      </div>`
+    escucharPedidosEspeciales(data => {
+      const el2 = document.getElementById('pe-historial-lista'); if (!el2) return
+      if (!data.length) { el2.innerHTML = '<div class="empty">Sin pedidos especiales</div>'; return }
+      const sorted = [...data].sort((a,b) => (b.creadoEn||'').localeCompare(a.creadoEn||''))
+      el2.innerHTML = '<p style="font-size:11px;font-weight:500;color:#888;margin-bottom:8px;letter-spacing:.05em">PEDIDOS ESPECIALES COBRADOS</p>' +
+        sorted.map(p =>
+          '<div class="card" style="margin-bottom:8px;border-left:3px solid #5BA4CF">' +
+            '<div style="display:flex;justify-content:space-between;align-items:start">' +
+              '<div>' +
+                '<div style="font-size:13px;font-weight:600;color:#1A3A5C">' + (p.peNum||'') + ' · ' + (p.invNombre||'') + '</div>' +
+                '<div style="font-size:11px;color:#888">' + (p.invCodigo||'') + (p.familia ? ' · Familia ' + p.familia : '') + '</div>' +
+                '<div style="font-size:12px;color:#555;margin-top:4px">' + (p.items||[]).map(i => i.desc).join(', ') + '</div>' +
+              '</div>' +
+              '<div style="text-align:right;flex-shrink:0;margin-left:8px">' +
+                '<div style="font-size:14px;font-weight:600">$' + fmt(p.total||0) + '</div>' +
+                '<span class="badge ' + (p.estado==='entregado'?'b-entr':'b-pago') + '" style="font-size:10px">' + (p.estado==='entregado'?'Entregado':'Pendiente') + '</span>' +
+              '</div>' +
+            '</div>' +
+          '</div></div>'
+        ).join('')
+    })
   }
 
   renderCobrar()

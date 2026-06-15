@@ -3,7 +3,7 @@ import { LOGO } from '../logo.js'
 import { buildHeader } from '../header.js'
 import { BODEGAS, escucharInvitados, crearInvitado, actualizarInvitado,
          escucharPedidos, guardarVino, eliminarVino, actualizarVino,
-         escucharVinos, limpiarDatosPrueba, escucharStock, actualizarStock, registrarDegustacion, leerTodosLosCarritos, guardarFamilyToken, verificarFamilyToken, getFamilyToken } from '../firebase.js'
+         escucharVinos, limpiarDatosPrueba, escucharStock, actualizarStock, registrarDegustacion, leerTodosLosCarritos, guardarFamilyToken, verificarFamilyToken, getFamilyToken, escucharPedidosEspeciales } from '../firebase.js'
 import { injectStyles } from '../styles.js'
 
 // ── QR REAL (qrcode-generator) ────────────────────────────────────────────
@@ -169,6 +169,8 @@ export function renderAdmin(app) {
       </div>
     </div>`
 
+  let pedidosEspeciales = []
+  escucharPedidosEspeciales(data => { pedidosEspeciales = data })
   escucharInvitados(data => {
     invitados = data
     if (tabActiva==='inv') renderTabInv()
@@ -422,20 +424,20 @@ export function renderAdmin(app) {
     const rec=(ipag+iing)*35000
     const vtas=pedidos.reduce((s,p)=>s+(p.total||0),0)
     const byS={}
-    pedidos.forEach(p=>{if(!byS[p.standId])byS[p.standId]={n:p.standNombre,t:0,c:0};byS[p.standId].t+=p.total||0;byS[p.standId].c++})
+    pedidos.forEach(p=>{if(!byS[p.standId])byS[p.standId]={n:p.standNombre,t:0,c:0,b:0};byS[p.standId].t+=p.total||0;byS[p.standId].c++;(p.items||[]).forEach(i=>{const m=i.desc&&i.desc.match(/×(\d+)/);if(m)byS[p.standId].b+=parseInt(m[1])})})
     const sorted=Object.values(byS).sort((a,b)=>b.t-a.t)
     document.getElementById('tab-content').innerHTML=`
       <div class="stats">
         ${[[invitados.filter(i=>i.estado!=='invalidado').length,'Invitados'],[ipag+iing,'Con bono'],
            ['$'+fmt(rec),'Bonos'],[pedidos.length,'Pedidos'],['$'+fmt(vtas),'Ventas'],
-           [pedidos.filter(p=>p.retiro==='envio').length,'Envíos']]
+           [pedidos.filter(p=>p.retiro==='envio').length + pedidosEspeciales.filter(p=>p.estado==='listo'||p.estado==='entregado').length,'Envíos']]
           .map(([v,l])=>`<div class="stat"><div class="v" style="font-size:${String(v).length>7?'13px':'20px'}">${v}</div><div class="l">${l}</div></div>`).join('')}
       </div>
       <div class="card">
         <p style="font-size:12px;font-weight:500;color:#6B1C1C;margin-bottom:8px">Ventas por bodega</p>
         ${sorted.length?sorted.map(r=>`
           <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:.5px solid #e0d5c8;font-size:12px">
-            <span style="font-weight:500">${r.n}</span><span style="color:#888">${r.c} ped.</span><span style="font-weight:500">$${fmt(r.t)}</span>
+            <span style="font-weight:500;flex:1">${r.n}</span><span style="color:#888;flex:1;text-align:center">${r.c} ped. · ${r.b} bot.</span><span style="font-weight:500;flex:0;white-space:nowrap">$${fmt(r.t)}</span>
           </div>`).join(''):'<div class="empty">Sin ventas aún</div>'}
       </div>`
   }

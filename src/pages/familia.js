@@ -118,7 +118,8 @@ export async function renderFamilia(app, familia, token) {
     return
   }
 
-  const invitados = await buscarInvitadosPorFamilia(familia)
+  const todosInvitados = await buscarInvitadosPorFamilia(familia)
+  const invitados = todosInvitados.filter(i => i.estado !== 'invalidado')
   const titulo = familia.charAt(0).toUpperCase() + familia.slice(1).toLowerCase()
   const badgeClass = { pagado: 'b-pago', ingresado: 'b-ingr', pendiente: 'b-pend', invalidado: 'b-canc' }
   const badgeLabel = { pagado: 'Bono confirmado', ingresado: 'Ingreso', pendiente: 'Pendiente', invalidado: 'Invalidado' }

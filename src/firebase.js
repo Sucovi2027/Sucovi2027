@@ -130,6 +130,7 @@ export async function crearPedidosDesdeCarrito(invitado, carritoItems) {
       invFireId:    invitado.fireId,
       invNombre:    invitado.nombre + ' ' + invitado.apellido,
       invCodigo:    invitado.codigo,
+      invFamilia:   invitado.familia || '',
       standId:      item.standId,
       standNombre:  item.standNombre,
       items:        item.items || [],
@@ -381,6 +382,10 @@ export async function crearPedidoEspecial(data) {
     creadoEn: new Date().toISOString()
   })
   return { fireId: ref.id, peNum }
+}
+
+export async function actualizarPedidoEspecial(fireId, data) {
+  await setDoc(doc(db, 'pedidosEspeciales', fireId), data, { merge: true })
 }
 
 export function escucharPedidosEspeciales(callback) {
