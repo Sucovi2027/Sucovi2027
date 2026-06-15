@@ -171,6 +171,7 @@ export function renderAdmin(app) {
 
   let pedidosEspeciales = []
   escucharPedidosEspeciales(data => { pedidosEspeciales = data })
+  setTimeout(() => { tabActiva='res'; renderTabRes() }, 100)
   escucharInvitados(data => {
     invitados = data
     if (tabActiva==='inv') renderTabInv()

@@ -2388,7 +2388,7 @@ This typically indicates that your device does not have a healthy Internet conne
         </div>
         <button class="btn" style="width:100%;margin-top:6px;font-size:12px" onclick="window._cModal()">Cerrar</button>
       </div>
-    </div>`;let p=[];pn(I=>{p=I}),xo(I=>{i=I,l==="inv"&&x(),l==="res"&&T()}),wo(I=>{o=I,s=I,l==="ped"&&_(),l==="res"&&T(),l==="cancelados"&&D()}),window._aTab=(I,y)=>{var g;l=I,document.querySelectorAll(".nav button").forEach(b=>b.classList.remove("on")),y.classList.add("on");const A={inv:x,reg:h,excel:m,ped:_,stands:C,res:T,config:P,stock:V};(g=A[I])==null||g.call(A)};function x(){const I=document.getElementById("tab-content");document.getElementById("buscar-inv")||(I.innerHTML=`
+    </div>`;let p=[];pn(I=>{p=I}),setTimeout(()=>{l="res",T()},100),xo(I=>{i=I,l==="inv"&&x(),l==="res"&&T()}),wo(I=>{o=I,s=I,l==="ped"&&_(),l==="res"&&T(),l==="cancelados"&&D()}),window._aTab=(I,y)=>{var g;l=I,document.querySelectorAll(".nav button").forEach(b=>b.classList.remove("on")),y.classList.add("on");const A={inv:x,reg:h,excel:m,ped:_,stands:C,res:T,config:P,stock:V};(g=A[I])==null||g.call(A)};function x(){const I=document.getElementById("tab-content");document.getElementById("buscar-inv")||(I.innerHTML=`
         <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
           <input id="buscar-inv" placeholder="Buscar nombre, código o familia..." style="flex:1;min-width:140px" oninput="window._fInv()">
           <select id="fil-est" onchange="window._fInv()" style="width:auto;min-width:120px">
