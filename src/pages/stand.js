@@ -283,6 +283,7 @@ export function renderStand(app, bodega, invitado) {
     if (btnEl) { btnEl.disabled = true; btnEl.style.opacity = '0.4' }
     if (delta > 0) {
       const vid = v.fireId||v.id
+      console.log('STOCK KEY:', bodega.id + '_' + vid, 'fireId:', v.fireId, 'id:', v.id)
       const ok = await intentarReservarStock(bodega.id, vid, delta)
       if (!ok) {
         window._showStandMsg('Sin stock disponible', '#C0392B')

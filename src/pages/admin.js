@@ -195,8 +195,15 @@ export function renderAdmin(app) {
   }
 
   // ── TAB: Invitados ───────────────────────────────────────────────────
+  let carritosActivosInv = {}
   function renderTabInv() {
     const tc = document.getElementById('tab-content')
+    // Cargar carritos en background
+    leerTodosLosCarritos(invitados.map(i => i.fireId)).then(items => {
+      carritosActivosInv = {}
+      items.forEach(item => { carritosActivosInv[item.invFireId] = true })
+      window._fInv()
+    }).catch(() => {})
     if (!document.getElementById('buscar-inv')) {
       tc.innerHTML = `
         <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
@@ -225,6 +232,7 @@ export function renderAdmin(app) {
             <div style="font-size:11px;color:#888">${i.tel}${i.familia?' · '+i.familia:''}</div>
           </div>
           <div style="font-size:11px;color:#aaa">${i.codigo||''}</div>
+          ${carritosActivosInv[i.fireId] ? '<span title="Tiene carrito activo" style="font-size:14px">🛒</span>' : ''}
           ${eBdg(i.estado)}
           <div style="display:flex;gap:4px;margin-left:auto;flex-wrap:wrap">
             <button class="btn" style="padding:4px 8px;font-size:11px" onclick="window._abrirWA('${i.fireId}')">📱 WA</button>
@@ -491,8 +499,6 @@ export function renderAdmin(app) {
     const fmt = n => Number(n).toLocaleString('es-AR')
     
     // Load active carts for reserved calculation
-    let carritosItems = []
-    try { const ids = invitados.map(i => i.fireId); carritosItems = await leerTodosLosCarritos(ids); console.log("CARRITOS:", carritosItems.length) } catch(e) { console.log("ERROR carritos:", e) }
 
     // Calculate reserved/paid/delivered from pedidos per vino
     const vinoStats = {}
@@ -577,6 +583,23 @@ ${stockData.map((s, idx) => {
   function renderTabConfig() {
     document.getElementById('tab-content').innerHTML=`
       <div class="card" style="max-width:480px;margin-bottom:14px">
+        <p style="font-size:13px;font-weight:500;color:#1A3A5C;margin-bottom:8px">📊 Exportar datos</p>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div>
+            <button class="btn btn-v" style="width:100%;padding:10px" onclick="window._exportarVinosExcel()">⬇️ Carta de vinos (CSV)</button>
+            <div id="export-vinos-msg" style="font-size:12px;text-align:center;margin-top:4px"></div>
+          </div>
+          <div>
+            <button class="btn btn-b" style="width:100%;padding:10px" onclick="window._exportarRemitosExcel()">⬇️ Remitos / Pedidos (CSV)</button>
+            <div id="export-remitos-msg" style="font-size:12px;text-align:center;margin-top:4px"></div>
+          </div>
+          <div>
+            <button class="btn" style="width:100%;padding:10px;color:#3A7D44;border-color:#3A7D44" onclick="window._exportarStockExcel()">⬇️ Stock actualizado (CSV)</button>
+            <div id="export-stock-msg" style="font-size:12px;text-align:center;margin-top:4px"></div>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="max-width:480px;margin-bottom:14px">
         <p style="font-size:13px;font-weight:500;color:#6B1C1C;margin-bottom:8px">🔗 Links útiles</p>
         ${[
           ['Registro público (para compartir con invitados)', '/registro'],
@@ -637,9 +660,7 @@ ${stockData.map((s, idx) => {
           Los vinos de las bodegas NO se borran.<br>
           Usar solo antes del evento real para limpiar datos de prueba.
         </p>
-        <button class="btn btn-red" style="width:100%;padding:10px" onclick="window._limpiar()">
-          🗑 Limpiar todos los datos de prueba
-        </button>
+        <!-- BOTÓN DESHABILITADO DÍA DEL EVENTO -->
         <div id="limpiar-msg" style="margin-top:8px;font-size:12px;text-align:center"></div>
       </div>`
   }
@@ -687,6 +708,80 @@ ${stockData.map((s, idx) => {
     } catch(e) { result.innerHTML = '<span style="color:#C0392B">Error: ' + e.message + '</span>' }
   }
 
+  window._exportarVinosExcel = async () => {
+    const msg = document.getElementById('export-vinos-msg')
+    msg.innerHTML = '<span style="color:#888">Cargando vinos...</span>'
+    try {
+      const rows = [['Bodega', 'Stand #', 'Nombre', 'Varietal', 'Cosecha', 'Descripción', 'Precio Botella', 'Unidades por Caja', 'Precio por Caja']]
+      let pendientes = BODEGAS.length
+      const vinosPorBodega = {}
+      await new Promise(resolve => {
+        BODEGAS.forEach(b => {
+          escucharVinos(b.id, vinos => {
+            vinosPorBodega[b.id] = { bodega: b, vinos }
+            pendientes--
+            if (pendientes === 0) resolve()
+          })
+        })
+      })
+      BODEGAS.forEach(b => {
+        const data = vinosPorBodega[b.id]
+        if (!data) return
+        data.vinos.forEach(v => {
+          const unidades = Array.isArray(v.unidades) ? v.unidades : []
+          const bot = unidades.find(u => u.u === 'Botella')
+          const caja = unidades.find(u => u.unidadesPorCaja)
+          rows.push([b.nombre, b.id, v.nombre||'', v.varietal||'', v.cosecha||'', v.descripcion||'',
+            bot ? bot.p : '', caja ? caja.unidadesPorCaja : '', caja ? caja.p : ''])
+        })
+      })
+      const csv = rows.map(r => r.map(cell => '"' + String(cell).replace(/"/g, '""') + '"').join(',')).join('\n')
+      const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
+      a.download = 'SUCOVI2027_vinos.csv'; a.click()
+      msg.innerHTML = '<span style="color:#3A7D44">✓ Descargado</span>'
+    } catch(e) { msg.innerHTML = '<span style="color:#C0392B">Error: ' + e.message + '</span>' }
+  }
+
+  window._exportarRemitosExcel = async () => {
+    const msg = document.getElementById('export-remitos-msg')
+    msg.innerHTML = '<span style="color:#888">Exportando...</span>'
+    try {
+      const rows = [['Voucher', 'Invitado', 'Código', 'Familia', 'Bodega', 'Stand #', 'Detalle', 'Total', 'Retiro', 'Estado', 'Fecha']]
+      pedidos.forEach(p => {
+        const voc = p.voucherNum ? 'VOC-' + String(p.voucherNum).padStart(3,'0') : ''
+        const detalle = (p.items||[]).map(i => i.desc).join(' | ')
+        const fecha = p.creadoEn?.toDate ? p.creadoEn.toDate().toLocaleDateString('es-AR') : ''
+        rows.push([voc, p.invNombre||'', p.invCodigo||'', p.invFamilia||'', p.standNombre||'', p.standId||'',
+          detalle, p.total||0, p.retiro||'stand', p.estado||'', fecha])
+      })
+      const csv = rows.map(r => r.map(cell => '"' + String(cell).replace(/"/g, '""') + '"').join(',')).join('\n')
+      const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
+      a.download = 'SUCOVI2027_remitos.csv'; a.click()
+      msg.innerHTML = '<span style="color:#3A7D44">✓ ' + pedidos.length + ' remitos exportados</span>'
+    } catch(e) { msg.innerHTML = '<span style="color:#C0392B">Error: ' + e.message + '</span>' }
+  }
+
+  window._exportarStockExcel = () => {
+    const msg = document.getElementById('export-stock-msg')
+    msg.innerHTML = '<span style="color:#888">Exportando...</span>'
+    try {
+      const rows = [['Bodega', 'Stand #', 'Vino', 'Stock Total', 'Degustación', 'Reservado', 'Pagado', 'Entregado', 'Disponible']]
+      stockData.forEach(s => {
+        const disponible = (s.total||0) - (s.degustacion||0) - (s.reservado||0) - (s.pagado||0) - (s.entregado||0)
+        const bodega = BODEGAS.find(b => b.id === s.standId || String(b.id) === String(s.standId))
+        rows.push([bodega ? bodega.nombre : '', s.standId||'', s.vinoNombre||'',
+          s.total||0, s.degustacion||0, s.reservado||0, s.pagado||0, s.entregado||0, disponible])
+      })
+      const csv = rows.map(r => r.map(cell => '"' + String(cell).replace(/"/g, '""') + '"').join(',')).join('\n')
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
+      a.download = 'SUCOVI2027_stock.csv'; a.click()
+      msg.innerHTML = '<span style="color:#3A7D44">✓ ' + (rows.length-1) + ' vinos exportados</span>'
+    } catch(e) { msg.innerHTML = '<span style="color:#C0392B">Error: ' + e.message + '</span>' }
+  }
+
   window._cambiarPin = () => {
     const pin = document.getElementById('nuevo-pin').value.trim()
     const msg = document.getElementById('pin-msg')
@@ -721,7 +816,7 @@ ${stockData.map((s, idx) => {
       ?`Hola ${inv.nombre}! 🍷\n\nYa estás dentro de SUCOVI 2027 — ¡disfrutá la noche!\n\nSi necesitás tu QR para los stands:\n👉 ${link}\n\n_Personal e intransferible._`
       :inv.estado==='pagado'
       ?`Hola ${inv.nombre}! 🍷\n\nTe confirmo tu acreditación para *SUCOVI 2027*.\n\n📅 Sáb 20 jun 2026 · 19:30 hs\n📍 Roma 656, Olivos\n\n✅ *Bono confirmado* ($35.000)\nIncluye degustaciones + copa + empanada.\n\nTu QR personal:\n👉 ${link}\n\n_Personal e intransferible. Un solo uso en la entrada._`
-      :`Hola ${inv.nombre}! 🍷\n\nQuedaste registrado/a en *SUCOVI 2027*.\n\n📅 Sáb 20 jun 2026 · 19:30 hs\n📍 Roma 656, Olivos\n\n⏳ Bono pendiente de pago ($35.000)\nPodés abonar en la puerta.\n\nConsultas: José Pannunzio +54 9 11 5400-1313`
+      :`Hola ${inv.nombre}! 🍷\n\nQuedaste registrado/a en *SUCOVI 2027*.\n\n📅 Sáb 20 jun 2026 · 19:30 hs\n📍 Roma 656, Olivos\n\n⏳ Bono pendiente de pago ($35.000)\nPodés abonar en la puerta.\n\nTu link personal:\n👉 ${link}\n\nConsultas: José Pannunzio +54 9 11 5400-1313`
     document.getElementById('mw-msg').textContent=waMsg
     const bp=document.getElementById('mw-btn-p')
     const estadoBadge=document.getElementById('mw-badge-estado')
