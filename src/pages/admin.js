@@ -559,6 +559,9 @@ ${stockData.map((s, idx) => {
                 '<button class="btn" style="font-size:10px;padding:3px 6px;color:#D97706;border-color:#D97706;display:block;width:100%" ' +
                 'data-sid="'+s.standId+'" data-vid="'+s.vinoId+'" data-nom="'+encodeURIComponent(s.vinoNombre||s.vinoId)+'" ' +
                 'onclick="window._agregarDegustation(this.dataset.sid,this.dataset.vid,decodeURIComponent(this.dataset.nom))">Degust.</button>' +
+                '<button class="btn" style="font-size:10px;padding:3px 6px;color:#3A7D44;border-color:#3A7D44;display:block;width:100%;margin-top:3px" ' +
+                'data-sid="'+s.standId+'" data-vid="'+s.vinoId+'" data-nom="'+encodeURIComponent(s.vinoNombre||s.vinoId)+'" ' +
+                'onclick="window._devolverDegustacion(this.dataset.sid,this.dataset.vid,decodeURIComponent(this.dataset.nom))">↩ Devolver</button>' +
                 '</td></tr>'
             }).join('')}
           </tbody>
@@ -573,6 +576,12 @@ ${stockData.map((s, idx) => {
     renderTabStock()
   }
 
+  window._devolverDegustacion = async (standId, vinoId, nombre) => {
+    const cant = parseInt(prompt('Devolver degustación a stock para ' + nombre + '\n¿Cuántas botellas regresan?'))
+    if (!cant || cant <= 0) return
+    await registrarDegustacion(standId, vinoId, -cant)
+    renderTabStock()
+  }
   window._agregarDegustation = async (standId, vinoId, nombre) => {
     const cant = parseInt(prompt('Registrar degustación para ' + nombre + '\n¿Cuántas botellas se abrieron?'))
     if (!cant || cant <= 0) return

@@ -1,6 +1,6 @@
 import { buildHeader } from '../header.js'
 // src/pages/carrito.js
-import { escucharCarrito, eliminarItemCarrito,
+import { escucharCarrito, eliminarItemCarrito, liberarReservaStock,
          actualizarRetiroStand, crearPedidosDesdeCarrito, vaciarCarrito } from '../firebase.js'
 import { injectStyles } from '../styles.js'
 
@@ -125,6 +125,11 @@ export function renderCarrito(app, invitado) {
   window._quitarCarrito = async (standDocId, itemKey) => {
     const stand = carritoItems.find(s => s.standDocId === standDocId)
     if (!stand) return
+    // Liberar stock reservado
+    const item = (stand.items||[]).find(i => i.key === itemKey)
+    if (item && item.vinoId && item.qty) {
+      await liberarReservaStock(Number(stand.standId), item.vinoId, item.qty).catch(()=>{})
+    }
     await eliminarItemCarrito(invitado.fireId, Number(stand.standId), itemKey)
   }
 
