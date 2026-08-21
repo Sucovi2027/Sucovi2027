@@ -144,7 +144,7 @@ export async function crearPedidosDesdeCarrito(invitado, carritoItems) {
   // Update counter
   batch.set(contRef, { voucher: nextVoucher + carritoItems.length - 1 }, { merge: true })
   await batch.commit()
-  return refs.map(r => r.id)
+  return refs.map((r, idx) => ({ fireId: r.id, voucherNum: nextVoucher + idx }))
 }
 export function escucharPedidos(callback) {
   return onSnapshot(
@@ -317,6 +317,17 @@ export async function getStockDoc(standId, vinoId) {
   const ref = doc(db, 'stock', String(standId) + '_' + vinoId)
   const snap = await getDoc(ref)
   return snap.exists() ? snap.data() : null
+}
+
+export async function actualizarItemCarrito(invFireId, standId, itemKey, data) {
+  const ref = doc(db, 'carritos', invFireId, 'items', String(standId))
+  const snap = await getDoc(ref)
+  if (!snap.exists()) return
+  const items = snap.data().items || []
+  const idx = items.findIndex(i => i.key === itemKey)
+  if (idx < 0) return
+  items[idx] = { ...items[idx], ...data }
+  await setDoc(ref, { ...snap.data(), items }, { merge: true })
 }
 
 export async function leerTodosLosCarritos(invitadoIds) {

@@ -420,7 +420,7 @@ export function renderCaja(app) {
     if (btn) { btn.disabled = true; btn.textContent = 'Procesando...' }
     const msg = document.getElementById('cobro-msg')
     try {
-      await crearPedidosDesdeCarrito(inv, items)
+      const pedidoRefs = await crearPedidosDesdeCarrito(inv, items)
       // Mover reservado a pagado en stock
       for (const stand of items) {
         for (const item of (stand.items||[])) {
@@ -436,14 +436,10 @@ export function renderCaja(app) {
       if (va) va.style.display = 'flex'
       // Store cobrado data for print/WA — get pedido IDs from Firebase
       window._lastCobrado = { inv, items }
-      // Load pedido IDs for QR generation
-      const { escucharPedidosPorInvitado } = await import('../firebase.js')
-      escucharPedidosPorInvitado(inv.fireId, peds => {
-        const nuevos = peds.filter(p => items.some(s => s.standId === p.standId))
-        window._lastPedidosIds = nuevos.map(p => p.fireId)
-        window._lastVoucherNums = nuevos.map(p => p.voucherNum||0)
-        console.log('voucherNums:', window._lastVoucherNums)
-      })
+      // Usar IDs y voucherNums devueltos directamente por crearPedidosDesdeCarrito (orden garantizado)
+      window._lastPedidosIds = pedidoRefs.map(r => r.fireId)
+      window._lastVoucherNums = pedidoRefs.map(r => r.voucherNum)
+      console.log('voucherNums (garantizados):', window._lastVoucherNums)
     } catch(e) {
       msg.innerHTML = `<span style="color:#C0392B">Error: ${e.message}</span>`
       if (btn) { btn.disabled = false; btn.textContent = 'Reintentar' }

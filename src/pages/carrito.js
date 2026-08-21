@@ -1,7 +1,8 @@
 import { buildHeader } from '../header.js'
 // src/pages/carrito.js
 import { escucharCarrito, eliminarItemCarrito, liberarReservaStock,
-         actualizarRetiroStand, crearPedidosDesdeCarrito, vaciarCarrito } from '../firebase.js'
+         actualizarRetiroStand, crearPedidosDesdeCarrito, vaciarCarrito,
+         intentarReservarStock, actualizarItemCarrito, escucharStock } from '../firebase.js'
 import { injectStyles } from '../styles.js'
 
 const fmt = n => Number(n).toLocaleString('es-AR')
@@ -21,6 +22,7 @@ export function renderCarrito(app, invitado) {
   }
 
   let carritoItems = []
+  let stockCarrito = []
 
   app.innerHTML = `
     ${buildHeader({ title: '🛒 Mi carrito', sub: invitado.nombre + ' ' + invitado.apellido + ' · ' + invitado.codigo, backHref: '/acceso?inv=' + invitado.token, backLabel: '← Mi QR', backStyle: 'background:#A32D2D;color:#fff;border-color:#A32D2D' })}
@@ -28,6 +30,7 @@ export function renderCarrito(app, invitado) {
       <div class="empty">Cargando carrito...</div>
     </div>`
 
+  escucharStock(data => { stockCarrito = data; renderCarritoBody() })
   const unsub = escucharCarrito(invitado.fireId, items => {
     carritoItems = items
     renderCarritoBody()
@@ -67,14 +70,20 @@ export function renderCarrito(app, invitado) {
           </div>
 
           ${stand.items.map(i => `
-            <div style="display:flex;justify-content:space-between;align-items:center;
-              padding:6px 0;border-bottom:.5px solid #f0ebe4">
-              <span style="font-size:13px;color:#333">${i.desc}</span>
-              <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
-                <span style="font-size:13px;font-weight:500">$${fmt(i.sub)}</span>
-                <button onclick="window._quitarCarrito('${stand.standDocId}','${i.key}')"
-                  style="border:none;background:none;color:#A32D2D;cursor:pointer;
-                  font-size:14px;padding:0 4px;font-weight:500">✕</button>
+            <div style="padding:6px 0;border-bottom:.5px solid #f0ebe4">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="font-size:13px;color:#333;flex:1">${i.vinoNombre||i.desc.split(' —')[0]}</span>
+                <span style="font-size:13px;font-weight:500;margin:0 10px">$${fmt(i.sub)}</span>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
+                <div style="display:flex;align-items:center;gap:8px">
+                  <button onclick="window._ajustarCarrito('${stand.standDocId}','${stand.standId}','${i.key}','${i.vinoId}',-1)"
+                    class="qty-btn" style="width:28px;height:28px">−</button>
+                  <span style="font-size:14px;font-weight:500;min-width:20px;text-align:center">${i.qty||1}</span>
+                  <button onclick="window._ajustarCarrito('${stand.standDocId}','${stand.standId}','${i.key}','${i.vinoId}',1)"
+                    class="qty-btn" style="width:28px;height:28px">+</button>
+                </div>
+                <span style="font-size:11px;color:#888">$${fmt(i.precio||0)} c/u</span>
               </div>
             </div>`).join('')}
 
@@ -122,15 +131,34 @@ export function renderCarrito(app, invitado) {
       <div id="carrito-msg" style="font-size:12px;text-align:center;min-height:16px;margin-bottom:8px"></div>`
   }
 
-  window._quitarCarrito = async (standDocId, itemKey) => {
+  window._ajustarCarrito = async (standDocId, standId, itemKey, vinoId, delta) => {
     const stand = carritoItems.find(s => s.standDocId === standDocId)
     if (!stand) return
-    // Liberar stock reservado
     const item = (stand.items||[]).find(i => i.key === itemKey)
-    if (item && item.vinoId && item.qty) {
-      await liberarReservaStock(Number(stand.standId), item.vinoId, item.qty).catch(()=>{})
+    if (!item) return
+    const newQty = (item.qty||1) + delta
+    const msg = document.getElementById('carrito-msg')
+    if (delta > 0) {
+      // Verificar stock disponible
+      const stockDoc = stockCarrito.find(s => String(s.standId) === String(standId) && s.vinoId === vinoId)
+      if (stockDoc) {
+        const disp = (stockDoc.total||0) - (stockDoc.degustacion||0) - (stockDoc.reservado||0) - (stockDoc.pagado||0) - (stockDoc.entregado||0)
+        if (disp <= 0) {
+          if (msg) { msg.innerHTML = '<span style="color:#C0392B">Sin stock disponible</span>'; setTimeout(()=>msg.innerHTML='',2000) }
+          return
+        }
+      }
+      await intentarReservarStock(Number(standId), vinoId, 1)
+    } else {
+      await liberarReservaStock(Number(standId), vinoId, 1).catch(()=>{})
     }
-    await eliminarItemCarrito(invitado.fireId, Number(stand.standId), itemKey)
+    if (newQty <= 0) {
+      await eliminarItemCarrito(invitado.fireId, Number(standId), itemKey)
+    } else {
+      const newSub = (item.precio||0) * newQty
+      const newDesc = (item.vinoNombre||item.desc.split(' —')[0]) + ' — ' + (item.unidad||'Botella') + ' ×' + newQty
+      await actualizarItemCarrito(invitado.fireId, Number(standId), itemKey, { qty: newQty, sub: newSub, desc: newDesc })
+    }
   }
 
   window._cambiarRetiro = async (standDocId, standId, retiro) => {
