@@ -89,7 +89,10 @@ export function renderBodegaVinos(app, bodega) {
       <div style="padding:10px 0;border-bottom:.5px solid #e0d5c8">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
           <div style="flex:1">
-            <div style="font-size:14px;font-weight:500">${v.nombre}</div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="font-size:14px;font-weight:500">${v.nombre}</div>
+              ${v.vinoId ? '<span style="font-size:10px;background:#1A3A5C;color:#fff;padding:2px 7px;border-radius:10px;font-weight:600">'+v.vinoId+'</span>' : ''}
+            </div>
             <div style="font-size:11px;color:#888;margin-top:2px">
               ${v.varietal||''}${v.cosecha?' · '+v.cosecha:''}
             </div>

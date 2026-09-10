@@ -2850,7 +2850,7 @@ _Personal e intransferible. Un solo uso en la entrada._`,h=document.getElementBy
             </div>
           </div>
           ${(M.items||[]).map(N=>`
-            <div class="item"><span>${N.desc}</span><strong>$${A(N.sub)}</strong></div>
+            <div class="item"><span>${N.vinoId?'<span style="font-size:10px;background:#1A3A5C;color:#fff;padding:1px 6px;border-radius:8px;margin-right:5px;font-weight:600">'+N.vinoId+"</span>":""}${N.desc}</span><strong>$${A(N.sub)}</strong></div>
           `).join("")}
           <div class="total">
             <span>Total</span>
@@ -2876,7 +2876,7 @@ _Personal e intransferible. Un solo uso en la entrada._`,h=document.getElementBy
             </div>
           </div>
           ${(C.items||[]).map(S=>`
-            <div class="item"><span>${S.desc}</span><strong>$${A(S.sub)}</strong></div>
+            <div class="item"><span>${S.vinoId?'<span style="font-size:10px;background:#1A3A5C;color:#fff;padding:1px 6px;border-radius:8px;margin-right:5px;font-weight:600">'+S.vinoId+"</span>":""}${S.desc}</span><strong>$${A(S.sub)}</strong></div>
           `).join("")}
           <div class="total"><span>Total</span><span>$${A((C.items||[]).reduce((S,M)=>S+(M.sub||0),0))}</span></div>
         </div>
@@ -3516,7 +3516,10 @@ _Sáb 20 jun 2026 · Roma 656, Olivos_`,N="https://wa.me/54"+((Q=m.tel)==null?vo
       <div style="padding:10px 0;border-bottom:.5px solid #e0d5c8">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
           <div style="flex:1">
-            <div style="font-size:14px;font-weight:500">${p.nombre}</div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="font-size:14px;font-weight:500">${p.nombre}</div>
+              ${p.vinoId?'<span style="font-size:10px;background:#1A3A5C;color:#fff;padding:2px 7px;border-radius:10px;font-weight:600">'+p.vinoId+"</span>":""}
+            </div>
             <div style="font-size:11px;color:#888;margin-top:2px">
               ${p.varietal||""}${p.cosecha?" · "+p.cosecha:""}
             </div>
