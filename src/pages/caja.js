@@ -326,7 +326,7 @@ export function renderCaja(app) {
             </div>
           </div>
           ${(stand.items||[]).map(i => `
-            <div class="item"><span>${i.vinoId ? '<span style="font-size:10px;background:#1A3A5C;color:#fff;padding:1px 6px;border-radius:8px;margin-right:5px;font-weight:600">'+i.vinoId+'</span>' : ''}${i.desc}</span><strong>$${fmt(i.sub)}</strong></div>
+            <div class="item"><span>${(i.vinoCodigoLegible||i.vinoId) ? '<span style="font-size:10px;background:#1A3A5C;color:#fff;padding:1px 6px;border-radius:8px;margin-right:5px;font-weight:600">'+(i.vinoCodigoLegible||i.vinoId)+'</span>' : ''}${i.desc}</span><strong>$${fmt(i.sub)}</strong></div>
           `).join('')}
           <div class="total">
             <span>Total</span>
@@ -353,7 +353,7 @@ export function renderCaja(app) {
             </div>
           </div>
           ${(stand.items||[]).map(i => `
-            <div class="item"><span>${i.vinoId ? '<span style="font-size:10px;background:#1A3A5C;color:#fff;padding:1px 6px;border-radius:8px;margin-right:5px;font-weight:600">'+i.vinoId+'</span>' : ''}${i.desc}</span><strong>$${fmt(i.sub)}</strong></div>
+            <div class="item"><span>${(i.vinoCodigoLegible||i.vinoId) ? '<span style="font-size:10px;background:#1A3A5C;color:#fff;padding:1px 6px;border-radius:8px;margin-right:5px;font-weight:600">'+(i.vinoCodigoLegible||i.vinoId)+'</span>' : ''}${i.desc}</span><strong>$${fmt(i.sub)}</strong></div>
           `).join('')}
           <div class="total"><span>Total</span><span>$${fmt((stand.items||[]).reduce((s,i)=>s+(i.sub||0),0))}</span></div>
         </div>

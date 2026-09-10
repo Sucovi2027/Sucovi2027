@@ -308,7 +308,7 @@ export function renderStand(app, bodega, invitado) {
         key,
         desc: `${v.nombre} — ${u.u} ×${localQty[key]}`,
         sub:  u.p * localQty[key],
-        vinoNombre: v.nombre, vinoId: v.fireId||v.id||v.nombre, unidad: u.u, precio: u.p, qty: localQty[key]
+        vinoNombre: v.nombre, vinoId: v.fireId||v.id||v.nombre, vinoCodigoLegible: v.vinoId||'', unidad: u.u, precio: u.p, qty: localQty[key]
       }
       window._showStandMsg('⏳ Guardando...', '#5BA4CF')
       const msg = document.getElementById('add-msg')
