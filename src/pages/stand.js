@@ -252,7 +252,7 @@ export function renderStand(app, bodega, invitado) {
     }
     el.innerHTML = vinos.map((v, vi) => `
       <div class="vino-card">
-        <div style="font-size:17px;font-weight:600;color:#1A3A5C">${v.nombre}</div>
+        <div style="font-size:17px;font-weight:600;color:#1A3A5C">${v.nombre}${v.vinoId ? ' <span style="font-size:10px;background:#1A3A5C;color:#fff;padding:1px 6px;border-radius:8px;font-weight:600">'+v.vinoId+'</span>' : ''}</div>
         <div style="font-size:11px;color:#888;margin-top:2px">
           <span style="font-size:14px;color:#555">${v.varietal || ''}${v.cosecha ? ' · ' + v.cosecha : ''}</span>
         </div>
@@ -280,7 +280,8 @@ export function renderStand(app, bodega, invitado) {
     // Disable buttons while processing
     const btnId = `btn${delta>0?'p':'m'}${vi}_${ui}`
     const btnEl = document.getElementById(btnId)
-    if (btnEl) { btnEl.disabled = true; btnEl.style.opacity = '0.4' }
+    const origStandText = btnEl ? btnEl.textContent : ''
+    if (btnEl) { btnEl.textContent = '⏳'; btnEl.disabled = true; btnEl.style.opacity = '1' }
     if (delta > 0) {
       const vid = v.fireId||v.id
       console.log('STOCK KEY:', bodega.id + '_' + vid, 'fireId:', v.fireId, 'id:', v.id)
@@ -288,7 +289,7 @@ export function renderStand(app, bodega, invitado) {
       if (!ok) {
         window._showStandMsg('Sin stock disponible', '#C0392B')
         setTimeout(() => window._hideStandMsg(), 1800)
-        if (btnEl) { btnEl.disabled = false; btnEl.style.opacity = '1' }
+        if (btnEl) { btnEl.textContent = origStandText; btnEl.disabled = false }
         return
       }
     }
@@ -301,7 +302,7 @@ export function renderStand(app, bodega, invitado) {
       window._showStandMsg('⏳ Guardando...', '#5BA4CF')
       await eliminarItemCarrito(invitado.fireId, bodega.id, key)
       window._showStandMsg('✓ Carrito actualizado', '#3B6D11')
-      if (btnEl) { btnEl.disabled = false; btnEl.style.opacity = '1' }
+      if (btnEl) { btnEl.textContent = origStandText; btnEl.disabled = false }
       setTimeout(() => window._hideStandMsg(), 1500)
     } else {
       const item = {
@@ -318,7 +319,7 @@ export function renderStand(app, bodega, invitado) {
       if (stockDisponible[vid] !== undefined) stockDisponible[vid] = Math.max(0, stockDisponible[vid] - delta)
       document.getElementById('retiro-box').style.display = 'block'
       window._showStandMsg('✓ Carrito actualizado', '#3B6D11')
-      if (btnEl) { btnEl.disabled = false; btnEl.style.opacity = '1' }
+      if (btnEl) { btnEl.textContent = origStandText; btnEl.disabled = false }
       setTimeout(() => window._hideStandMsg(), 1500)
       msg.textContent = ''
       msg.style.cssText = ''

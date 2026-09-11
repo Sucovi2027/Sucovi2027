@@ -247,13 +247,14 @@ export async function limpiarDatosPrueba() {
 }
 
 // ── STOCK ────────────────────────────────────────────────────────────────────
-export async function actualizarStock(standId, vinoId, cantidad, vinoNombre) {
+export async function actualizarStock(standId, vinoId, cantidad, vinoNombre, vinoCodigoLegible) {
   const ref = doc(db, 'stock', standId + '_' + vinoId)
   const snap = await getDoc(ref)
   const actual = snap.exists() ? snap.data() : {}
   const nombreFinal = (vinoNombre && vinoNombre !== vinoId) ? vinoNombre : (actual.vinoNombre && actual.vinoNombre !== vinoId ? actual.vinoNombre : vinoNombre||vinoId)
   await setDoc(ref, {
     standId: Number(standId), vinoId, vinoNombre: nombreFinal,
+    vinoId2: vinoCodigoLegible || actual.vinoId2 || '',
     total: (actual.total||0) + cantidad,
     degustacion: actual.degustacion||0,
     reservado: actual.reservado||0,

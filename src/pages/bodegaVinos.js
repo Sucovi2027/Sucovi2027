@@ -138,9 +138,15 @@ export function renderBodegaVinos(app, bodega) {
     if (!unidades.length) { m.innerHTML='<span style="color:#A32D2D">Ingresá al menos precio de botella.</span>'; return }
     if (uc && !pc) { m.innerHTML='<span style="color:#A32D2D">Ingresá las unidades por caja para calcular el precio.</span>'; return }
     const stockInicial = parseInt(document.getElementById('vs')?.value) || 0
+    // Generar codigo legible: S{standId}-{3letras}-{correlativo}
+    console.log('bodega:', bodega.id, bodega.nombre, 'vinos:', (vinos||[]).length)
+    const prefijoBodega = bodega.nombre.replace(/^bodega\s+/i,'').replace(/[^a-zA-Z]/g,'').substring(0,3).toUpperCase()
+    const standPrefix = 'S' + String(bodega.id).padStart(2,'0')
+    const correlativo = String((vinos||[]).length + 1).padStart(3,'0')
+    const vinoCodigoLegible = standPrefix + '-' + prefijoBodega + '-' + correlativo
     const data = { nombre, varietal:document.getElementById('vv').value.trim(),
       cosecha:document.getElementById('vc').value.trim(),
-      descripcion:document.getElementById('vd').value.trim(), unidades }
+      descripcion:document.getElementById('vd').value.trim(), unidades, vinoId: vinoCodigoLegible }
     m.innerHTML='<span style="color:#888">Guardando...</span>'
     try {
       if (editandoId) {
@@ -155,7 +161,7 @@ export function renderBodegaVinos(app, bodega) {
         editandoId=null
       } else {
         const vinoId = await guardarVino(bodega.id, data)
-        if (stockInicial > 0 && vinoId) await actualizarStock(bodega.id, vinoId, stockInicial, data.nombre)
+        if (stockInicial > 0 && vinoId) await actualizarStock(bodega.id, vinoId, stockInicial, data.nombre, data.vinoId)
       }
       limpiar()
       document.getElementById('form-titulo').textContent='Agregar vino'

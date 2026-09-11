@@ -77,10 +77,10 @@ export function renderCarrito(app, invitado) {
               </div>
               <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
                 <div style="display:flex;align-items:center;gap:8px">
-                  <button onclick="window._ajustarCarrito('${stand.standDocId}','${stand.standId}','${i.key}','${i.vinoId}',-1)"
+                  <button id="btn-m-${stand.standDocId}-${i.key}" onclick="window._ajustarCarrito('${stand.standDocId}','${stand.standId}','${i.key}','${i.vinoId}',-1,this)"
                     class="qty-btn" style="width:28px;height:28px">−</button>
                   <span style="font-size:14px;font-weight:500;min-width:20px;text-align:center">${i.qty||1}</span>
-                  <button onclick="window._ajustarCarrito('${stand.standDocId}','${stand.standId}','${i.key}','${i.vinoId}',1)"
+                  <button id="btn-p-${stand.standDocId}-${i.key}" onclick="window._ajustarCarrito('${stand.standDocId}','${stand.standId}','${i.key}','${i.vinoId}',1,this)"
                     class="qty-btn" style="width:28px;height:28px">+</button>
                 </div>
                 <span style="font-size:11px;color:#888">$${fmt(i.precio||0)} c/u</span>
@@ -131,33 +131,46 @@ export function renderCarrito(app, invitado) {
       <div id="carrito-msg" style="font-size:12px;text-align:center;min-height:16px;margin-bottom:8px"></div>`
   }
 
-  window._ajustarCarrito = async (standDocId, standId, itemKey, vinoId, delta) => {
+  window._ajustarCarrito = async (standDocId, standId, itemKey, vinoId, delta, btnEl) => {
     const stand = carritoItems.find(s => s.standDocId === standDocId)
     if (!stand) return
     const item = (stand.items||[]).find(i => i.key === itemKey)
     if (!item) return
-    const newQty = (item.qty||1) + delta
-    const msg = document.getElementById('carrito-msg')
-    if (delta > 0) {
-      // Verificar stock disponible
-      const stockDoc = stockCarrito.find(s => String(s.standId) === String(standId) && s.vinoId === vinoId)
-      if (stockDoc) {
-        const disp = (stockDoc.total||0) - (stockDoc.degustacion||0) - (stockDoc.reservado||0) - (stockDoc.pagado||0) - (stockDoc.entregado||0)
-        if (disp <= 0) {
-          if (msg) { msg.innerHTML = '<span style="color:#C0392B">Sin stock disponible</span>'; setTimeout(()=>msg.innerHTML='',2000) }
-          return
+    const btnM = document.getElementById('btn-m-'+standDocId+'-'+itemKey)
+    const btnP = document.getElementById('btn-p-'+standDocId+'-'+itemKey)
+    const origText = btnEl ? btnEl.textContent : ''
+    if (btnEl) { btnEl.textContent = '⏳'; btnEl.disabled = true }
+    if (btnM) btnM.disabled = true
+    if (btnP) btnP.disabled = true
+    try {
+      const newQty = (item.qty||1) + delta
+      const msg = document.getElementById('carrito-msg')
+      if (delta > 0) {
+        const stockDoc = stockCarrito.find(s => String(s.standId) === String(standId) && s.vinoId === vinoId)
+        if (stockDoc) {
+          const disp = (stockDoc.total||0) - (stockDoc.degustacion||0) - (stockDoc.reservado||0) - (stockDoc.pagado||0) - (stockDoc.entregado||0)
+          if (disp <= 0) {
+            if (msg) { msg.innerHTML = '<span style="color:#C0392B">Sin stock disponible</span>'; setTimeout(()=>msg.innerHTML='',2000) }
+            return
+          }
         }
+        await intentarReservarStock(Number(standId), vinoId, 1)
+      } else {
+        await liberarReservaStock(Number(standId), vinoId, 1).catch(()=>{})
       }
-      await intentarReservarStock(Number(standId), vinoId, 1)
-    } else {
-      await liberarReservaStock(Number(standId), vinoId, 1).catch(()=>{})
-    }
-    if (newQty <= 0) {
-      await eliminarItemCarrito(invitado.fireId, Number(standId), itemKey)
-    } else {
-      const newSub = (item.precio||0) * newQty
-      const newDesc = (item.vinoNombre||item.desc.split(' —')[0]) + ' — ' + (item.unidad||'Botella') + ' ×' + newQty
-      await actualizarItemCarrito(invitado.fireId, Number(standId), itemKey, { qty: newQty, sub: newSub, desc: newDesc })
+      if (newQty <= 0) {
+        await eliminarItemCarrito(invitado.fireId, Number(standId), itemKey)
+      } else {
+        const newSub = (item.precio||0) * newQty
+        const newDesc = (item.vinoNombre||item.desc.split(' —')[0]) + ' — ' + (item.unidad||'Botella') + ' ×' + newQty
+        await actualizarItemCarrito(invitado.fireId, Number(standId), itemKey, { qty: newQty, sub: newSub, desc: newDesc })
+      }
+    } catch(e) {
+      console.error(e)
+    } finally {
+      if (btnEl) { btnEl.textContent = origText; btnEl.disabled = false }
+      if (btnM) btnM.disabled = false
+      if (btnP) btnP.disabled = false
     }
   }
 

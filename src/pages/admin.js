@@ -384,7 +384,7 @@ export function renderAdmin(app) {
           <div style="font-size:12px;font-weight:500">${p.invNombre||''}</div>
           <div style="font-size:11px;color:#888">${p.standNombre}${p.retiro==='envio'?' · <span style="color:#5A1E99">Envío</span>':''}</div>
         </div>
-        <span style="font-size:12px;color:#666;flex:2;min-width:100px">${(p.items||[]).map(i=>i.desc).join(' · ')}</span>
+        <span style="font-size:12px;color:#666;flex:2;min-width:100px">${(p.items||[]).map(i=>(i.vinoCodigoLegible?'<span style="font-size:10px;background:#1A3A5C;color:#fff;padding:1px 5px;border-radius:6px;margin-right:3px;font-weight:600">'+i.vinoCodigoLegible+'</span>':'')+i.desc).join(' · ')}</span>
         <span style="font-size:14px;font-weight:500">$${fmt(p.total||0)}</span>
         <span class="badge ${BE[p.estado]}">${LE[p.estado]}</span>
       </div>`).join('')
@@ -544,7 +544,7 @@ ${stockData.map((s, idx) => {
               const dispColor = disponible <= 0 ? '#C0392B' : disponible <= 3 ? '#D97706' : '#3A7D44'
               const bg = idx%2===0 ? '#fff' : '#F8FAFC'
               return '<tr style="background:'+bg+';border-bottom:.5px solid #E8EFF5">' +
-                '<td style="padding:8px"><div style="font-weight:500;color:#1A3A5C">'+(s.vinoNombre||s.vinoId)+'</div>' +
+                '<td style="padding:8px"><div style="font-weight:500;color:#1A3A5C">'+(s.vinoNombre||s.vinoId)+'</div>'+(s.vinoId2?'<div><span style="font-size:10px;background:#1A3A5C;color:#fff;padding:1px 6px;border-radius:8px;font-weight:600">'+s.vinoId2+'</span></div>':'')+
                 '<div style="font-size:11px;color:#888">Stand #'+s.standId+' · '+(bodega?.nombre||'')+'</div></td>' +
                 '<td style="padding:8px;text-align:center;font-weight:500">'+(s.total||0)+'</td>' +
                 '<td style="padding:8px;text-align:center;color:#D97706">'+(s.degustacion||0)+'</td>' +

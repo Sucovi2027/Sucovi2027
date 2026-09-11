@@ -205,7 +205,7 @@ export function renderStandPanel(app, bodega) {
           ${(p.items||[]).map(i => `
             <div style="display:flex;justify-content:space-between;font-size:13px;
               padding:4px 0;border-bottom:.5px solid #E8EFF5;color:#555">
-              <span>${i.desc}</span><strong>$${fmt(i.sub)}</strong>
+              <span>${i.vinoCodigoLegible ? '<span style="font-size:10px;background:#1A3A5C;color:#fff;padding:1px 5px;border-radius:6px;margin-right:4px;font-weight:600">'+i.vinoCodigoLegible+'</span>' : ''}${i.desc}</span><strong>$${fmt(i.sub)}</strong>
             </div>`).join('')}
           <div style="display:flex;justify-content:space-between;font-size:14px;
             font-weight:500;margin-top:8px;color:#1A3A5C">
