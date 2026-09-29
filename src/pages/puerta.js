@@ -162,7 +162,7 @@ export function renderPuerta(app) {
           </div>
           <div style="flex:1">
             <div style="font-size:13px;font-weight:500">${i.nombre} ${i.apellido}</div>
-            <div style="font-size:11px;color:#888">${i.codigo}</div>
+            <div style="font-size:11px;color:#888">${i.codigo}${i.familia ? ' · Familia ' + i.familia : ''}</div>
           </div>
           <span style="font-size:11px;color:#3A7D44;font-weight:500">✅ Ingresó</span>
         </div>`).join('')}

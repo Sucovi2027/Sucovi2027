@@ -144,7 +144,7 @@ export function renderCaja(app) {
           <div class="avatar">${i.nombre[0]}${i.apellido[0]}</div>
           <div style="flex:1;min-width:0">
             <div style="font-size:14px;font-weight:500">${i.nombre} ${i.apellido}</div>
-            <div style="font-size:12px;color:#888">${i.codigo} · ${i.tel}</div>
+            <div style="font-size:12px;color:#888">${i.codigo} · ${i.tel}${i.familia?' · Familia '+i.familia:''}</div>
             ${cart ? `<div style="font-size:12px;color:#3A7D44;font-weight:500;margin-top:2px">
               🍷 ${cart.cant} ítem${cart.cant>1?'s':''} · $${Number(cart.total).toLocaleString('es-AR')}
               <span style="color:#888;font-weight:400"> · ${cart.stands} stand${cart.stands>1?'s':''}</span>
@@ -209,7 +209,7 @@ export function renderCaja(app) {
           </div>
           <div>
             <div style="font-size:16px;font-weight:500">${inv.nombre} ${inv.apellido}</div>
-            <div style="font-size:12px;color:#888">${inv.codigo}${inv.tel?' · '+inv.tel:''}</div>
+            <div style="font-size:12px;color:#888">${inv.codigo}${inv.tel?' · '+inv.tel:''}${inv.familia?' · Familia '+inv.familia:''}</div>
           </div>
         </div>
         ${pedHoy.length ? `<div style="background:#D1FAE5;border-radius:6px;padding:6px 10px;

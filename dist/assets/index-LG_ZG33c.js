@@ -2724,7 +2724,7 @@ _Personal e intransferible. Un solo uso en la entrada._`,h=document.getElementBy
           <div class="avatar">${C.nombre[0]}${C.apellido[0]}</div>
           <div style="flex:1;min-width:0">
             <div style="font-size:14px;font-weight:500">${C.nombre} ${C.apellido}</div>
-            <div style="font-size:12px;color:#888">${C.codigo} · ${C.tel}</div>
+            <div style="font-size:12px;color:#888">${C.codigo} · ${C.tel}${C.familia?" · Familia "+C.familia:""}</div>
             ${R?`<div style="font-size:12px;color:#3A7D44;font-weight:500;margin-top:2px">
               🍷 ${R.cant} ítem${R.cant>1?"s":""} · $${Number(R.total).toLocaleString("es-AR")}
               <span style="color:#888;font-weight:400"> · ${R.stands} stand${R.stands>1?"s":""}</span>
@@ -2744,7 +2744,7 @@ _Personal e intransferible. Un solo uso en la entrada._`,h=document.getElementBy
           </div>
           <div>
             <div style="font-size:16px;font-weight:500">${x.nombre} ${x.apellido}</div>
-            <div style="font-size:12px;color:#888">${x.codigo}${x.tel?" · "+x.tel:""}</div>
+            <div style="font-size:12px;color:#888">${x.codigo}${x.tel?" · "+x.tel:""}${x.familia?" · Familia "+x.familia:""}</div>
           </div>
         </div>
         ${C.length?`<div style="background:#D1FAE5;border-radius:6px;padding:6px 10px;
@@ -3656,7 +3656,7 @@ _Sáb 20 jun 2026 · Roma 656, Olivos_`,N="https://wa.me/54"+((Q=f.tel)==null?vo
           </div>
           <div style="flex:1">
             <div style="font-size:13px;font-weight:500">${m.nombre} ${m.apellido}</div>
-            <div style="font-size:11px;color:#888">${m.codigo}</div>
+            <div style="font-size:11px;color:#888">${m.codigo}${m.familia?" · Familia "+m.familia:""}</div>
           </div>
           <span style="font-size:11px;color:#3A7D44;font-weight:500">✅ Ingresó</span>
         </div>`}).join("")}
