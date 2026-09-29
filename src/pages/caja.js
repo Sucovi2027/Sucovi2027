@@ -255,6 +255,10 @@ export function renderCaja(app) {
           onclick="window._cobrar()">
           ✓ Cobrar $${fmt(total)} y generar vouchers
         </button>
+        <button class="btn" style="width:100%;padding:10px;font-size:13px;margin-top:6px;color:#D97706;border-color:#D97706"
+          onclick="window._imprimirPreVoucher()">
+          🧾 Pre-voucher (pendiente de pago)
+        </button>
         <div id="voucher-actions" style="display:none;margin-top:10px;display:flex;gap:8px;flex-direction:column">
           <button class="btn btn-b" style="width:100%;padding:10px;font-size:14px"
             onclick="window._imprimirVouchers()">
@@ -274,6 +278,51 @@ export function renderCaja(app) {
           </button>
         </div>`}
     `
+  }
+
+  window._imprimirPreVoucher = () => {
+    const inv = invSeleccionado; if (!inv) return
+    const items = carritoInv.filter(s => s.items?.length)
+    if (!items.length) return
+    const fmt = n => Number(n).toLocaleString('es-AR')
+    const win = window.open('', '_blank')
+    win.document.write(`<!DOCTYPE html><html><head>
+      <meta charset="utf-8"><title>Pre-voucher</title>
+      <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family: system-ui, sans-serif; padding: 16px; }
+        .voucher { border: 2px solid #D97706; border-radius: 10px; padding: 16px; margin-bottom: 16px; page-break-inside: avoid; }
+        .header { display: flex; justify-content: space-between; margin-bottom: 10px; border-bottom: 1px solid #FDE68A; padding-bottom: 8px; }
+        .evento { font-size: 10px; color: #888; letter-spacing: .08em; }
+        .stand { font-size: 22px; font-weight: 600; color: #1A3A5C; }
+        .inv { font-size: 16px; color: #444; }
+        .item { display: flex; justify-content: space-between; font-size: 15px; padding: 4px 0; border-bottom: .5px solid #eee; }
+        .total { display: flex; justify-content: space-between; font-size: 20px; font-weight: 600; margin-top: 8px; color: #1A3A5C; }
+        .sello { text-align:center; margin-top:16px; padding:12px; border: 4px solid #D97706; border-radius: 8px; color: #D97706; font-size: 28px; font-weight: 900; letter-spacing: .15em; }
+        @media print { body { padding: 0; } }
+      </style>
+    </head><body>
+    ${items.map(stand => `
+      <div class="voucher">
+        <div class="header">
+          <div>
+            <div class="evento">SUCOVI 2027 · PRE-VOUCHER · Stand #${stand.standId}</div>
+            <div class="stand">${stand.standNombre}</div>
+            <div class="inv">${inv.nombre} ${inv.apellido} · ${inv.codigo}${inv.familia ? ' · Familia ' + inv.familia : ''}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="background:#FEF3C7;color:#D97706;padding:3px 12px;border-radius:20px;font-size:11px;font-weight:600">⏳ PENDIENTE</div>
+          </div>
+        </div>
+        ${(stand.items||[]).map(i => `
+          <div class="item"><span>${i.vinoCodigoLegible ? '<span style="font-size:10px;background:#1A3A5C;color:#fff;padding:1px 5px;border-radius:6px;margin-right:4px">'+i.vinoCodigoLegible+'</span>' : ''}${i.desc}</span><strong>$${fmt(i.sub)}</strong></div>
+        `).join('')}
+        <div class="total"><span>Total</span><span>$${fmt((stand.items||[]).reduce((s,i)=>s+(i.sub||0),0))}</span></div>
+        <div class="sello">⏳ PENDIENTE DE PAGO</div>
+      </div>`).join('')}
+    <script>setTimeout(()=>window.print(),500)<\/script>
+    </body></html>`)
+    win.document.close()
   }
 
   window._imprimirVouchers = () => {
